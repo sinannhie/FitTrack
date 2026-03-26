@@ -1,0 +1,296 @@
+## FitTrack AI — Example API Requests
+## Works with REST Client (VS Code), curl, or httpie.
+## Base URL: http://localhost:8000/api/v1
+
+@base = http://localhost:8000/api/v1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 0. HEALTH CHECK
+# ══════════════════════════════════════════════════════════════════════════════
+
+### Health probe
+GET http://localhost:8000/health
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. USERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+### Create user (full goals)
+POST {{base}}/users/
+Content-Type: application/json
+
+{
+  "name": "Sinan",
+  "target_weight": 72.0,
+  "calorie_goal": 2200,
+  "protein_goal": 150
+}
+
+###
+# curl equivalent:
+# curl -X POST http://localhost:8000/api/v1/users/ \
+#   -H "Content-Type: application/json" \
+#   -d '{"name":"Sinan","target_weight":72.0,"calorie_goal":2200,"protein_goal":150}'
+
+
+### Create user (minimal)
+POST {{base}}/users/
+Content-Type: application/json
+
+{
+  "name": "Alex"
+}
+
+
+### List all users
+GET {{base}}/users/
+
+
+### Get user by ID
+GET {{base}}/users/1
+
+
+### Partial update — change only calorie goal
+PATCH {{base}}/users/1
+Content-Type: application/json
+
+{
+  "calorie_goal": 2400
+}
+
+
+### Delete user (cascades to all their data)
+DELETE {{base}}/users/1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. WEIGHT TRACKING
+# ══════════════════════════════════════════════════════════════════════════════
+
+### Log today's weight
+POST {{base}}/users/1/weight/
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "weight_kg": 78.5,
+  "notes": "Morning, fasted"
+}
+
+
+### Re-log same date (upsert — updates instead of duplicating)
+POST {{base}}/users/1/weight/
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "weight_kg": 78.2
+}
+
+
+### Log another day
+POST {{base}}/users/1/weight/
+Content-Type: application/json
+
+{
+  "date": "2024-06-16",
+  "weight_kg": 78.0
+}
+
+
+### Get full weight history (chart-ready)
+GET {{base}}/users/1/weight/
+
+
+### Get weight history with date range filter
+GET {{base}}/users/1/weight/?start_date=2024-06-01&end_date=2024-06-30
+
+
+### Delete a weight entry (use ID from history response)
+DELETE {{base}}/users/1/weight/1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. FOOD TRACKING
+# ══════════════════════════════════════════════════════════════════════════════
+
+### Browse the food database (check available food names + macros per 100g)
+GET {{base}}/foods
+
+
+### Log 200g chicken (macros auto-computed)
+### → calories=330, protein_g=62, carbs_g=0, fat_g=7.2
+POST {{base}}/users/1/food
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "food_name": "chicken",
+  "quantity_g": 200
+}
+
+
+### Log 3 eggs (~150g)
+POST {{base}}/users/1/food
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "food_name": "egg",
+  "quantity_g": 150
+}
+
+
+### Log oats for breakfast
+POST {{base}}/users/1/food
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "food_name": "oats",
+  "quantity_g": 80
+}
+
+
+### Log a banana
+POST {{base}}/users/1/food
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "food_name": "banana",
+  "quantity_g": 120
+}
+
+
+### Get all food entries for a date
+GET {{base}}/users/1/food?log_date=2024-06-15
+
+
+### Daily nutrition summary (totals + goal progress)
+GET {{base}}/users/1/nutrition/summary?summary_date=2024-06-15
+
+###
+# Expected response shape:
+# {
+#   "user_id": 1,
+#   "date": "2024-06-15",
+#   "total_calories": 811.2,
+#   "total_protein_g": 97.55,
+#   "total_carbs_g": 57.19,
+#   "total_fat_g": 22.47,
+#   "calorie_goal": 2200,
+#   "protein_goal": 150,
+#   "calorie_remaining": 1388.8,
+#   "protein_remaining": 52.45,
+#   "food_entries": 4
+# }
+
+
+### Delete a food log entry
+DELETE {{base}}/users/1/food/1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. WORKOUT TRACKING
+# ══════════════════════════════════════════════════════════════════════════════
+
+### Log bench press
+POST {{base}}/users/1/workouts/
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "exercise_name": "Bench Press",
+  "sets": 4,
+  "reps": 8,
+  "weight_kg": 80.0,
+  "notes": "Felt strong today"
+}
+
+
+### Log squats (same session, same date)
+POST {{base}}/users/1/workouts/
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "exercise_name": "Squat",
+  "sets": 5,
+  "reps": 5,
+  "weight_kg": 100.0
+}
+
+
+### Log pull-ups (bodyweight — weight_kg omitted)
+POST {{base}}/users/1/workouts/
+Content-Type: application/json
+
+{
+  "date": "2024-06-15",
+  "exercise_name": "Pull-ups",
+  "sets": 3,
+  "reps": 10
+}
+
+
+### Log a second session on a different day
+POST {{base}}/users/1/workouts/
+Content-Type: application/json
+
+{
+  "date": "2024-06-17",
+  "exercise_name": "Deadlift",
+  "sets": 3,
+  "reps": 5,
+  "weight_kg": 120.0
+}
+
+
+### Get full workout history (grouped by date, includes volume)
+GET {{base}}/users/1/workouts/
+
+
+### Get workout history with date filter
+GET {{base}}/users/1/workouts/?start_date=2024-06-01&end_date=2024-06-30
+
+
+### Delete a workout entry
+DELETE {{base}}/users/1/workouts/1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 5. ANALYTICS
+# ══════════════════════════════════════════════════════════════════════════════
+
+### Weight trend over last 30 days
+### → classifies as "losing" / "gaining" / "stable" / "insufficient_data"
+GET {{base}}/users/1/analytics/weight-trend?period_days=30
+
+
+### Weight trend over last 7 days
+GET {{base}}/users/1/analytics/weight-trend?period_days=7
+
+
+### Calorie ↔ weight correlation (scatter chart data)
+GET {{base}}/users/1/analytics/calorie-weight-correlation?period_days=30
+
+
+### Weekly summary — last 4 complete ISO weeks
+GET {{base}}/users/1/analytics/weekly-summary?num_weeks=4
+
+
+### Weekly summary — last 8 weeks
+GET {{base}}/users/1/analytics/weekly-summary?num_weeks=8
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HTTPIE equivalents (pip install httpie)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# http POST :8000/api/v1/users/ name=Sinan target_weight:=72.0 calorie_goal:=2200 protein_goal:=150
+# http POST :8000/api/v1/users/1/food date=2024-06-15 food_name=chicken quantity_g:=200
+# http GET  :8000/api/v1/users/1/nutrition/summary summary_date==2024-06-15
+# http GET  :8000/api/v1/users/1/analytics/weight-trend period_days==30
