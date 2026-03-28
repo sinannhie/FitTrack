@@ -1,7 +1,7 @@
 fastapi==0.95.2
 uvicorn==0.22.0
-sqlalachemy==1.4.49
-pydantic==1.10.13
+sqlalchemy==1.4.49
+pydantic==1.10.gi13
 python-dotenv==1.0.1
 
 # Uncomment when switching to PostgreSQL:
