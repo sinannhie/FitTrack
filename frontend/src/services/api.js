@@ -5,7 +5,7 @@ const BASE_URL = 'https://fittrack-backend-owl8.onrender.com/api/v1'
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: 30000,
 })
 
 // ── Response interceptor for consistent error shape ──────────────────────────
