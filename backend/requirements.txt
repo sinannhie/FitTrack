@@ -1,4 +1,3 @@
-pythonVersion: 3.12.9
 fastapi==0.115.12
 uvicorn==0.29.0
 sqlalchemy==1.4.49
@@ -9,4 +8,3 @@ python-dotenv==1.0.1
 # psycopg2-binary==2.9.9
 
 
-pythonVersion: 3.12.9
