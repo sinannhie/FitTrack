@@ -65,3 +65,14 @@ class Workout(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="workouts")
+
+class WeightEntry(Base):
+    __tablename__ = "weight_entries"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    weight     = Column(Float, nullable=False)
+    date       = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="weight_entries")

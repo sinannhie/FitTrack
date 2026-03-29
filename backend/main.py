@@ -12,7 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # ✅ FIXED IMPORTS (relative)
-from database import engine, Base
+
+from database import Base, engine
+
+Base.metadata.create_all(bind=engine)
 from utils.logger import logger
 
 # Import models so SQLAlchemy registers them
