@@ -7,7 +7,7 @@ Static in-memory food database.
 from typing import Dict, List, Optional
 
 # ✅ FIXED IMPORT (relative)
-from ..schemas.schemas import FoodDBItem
+from schemas.schemas import FoodDBItem
 
 
 # ── Database ─────────────────────────────────────────────────────

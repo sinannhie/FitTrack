@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, asc
 
 # ✅ FIXED IMPORTS
-from ..models.models import WeightEntry, FoodLog, Workout
-from ..schemas.schemas import (
+from models.models import WeightEntry, FoodLog, Workout
+from schemas.schemas import (
     WeightChartPoint,
     WeightTrendResponse,
     CorrelationPoint,
@@ -18,8 +18,8 @@ from ..schemas.schemas import (
     WeeklySummary,
     WeeklySummaryResponse,
 )
-from ..services.user_service import get_user_or_404
-from ..utils.logger import logger
+from services.user_service import get_user_or_404
+from utils.logger import logger
 
 
 def get_weight_trend(db: Session, user_id: int, period_days: int = 30) -> WeightTrendResponse:

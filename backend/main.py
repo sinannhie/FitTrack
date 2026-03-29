@@ -12,14 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # ✅ FIXED IMPORTS (relative)
-from .database import engine, Base
-from .utils.logger import logger
+from database import engine, Base
+from utils.logger import logger
 
 # Import models so SQLAlchemy registers them
-from .models import models  # noqa: F401
+from models import models  # noqa: F401
 
 # Routers
-from .routers import users, weight, food, workouts, analytics
+from routers import users, weight, food, workouts, analytics
 
 
 # ── Lifespan ─────────────────────────────────────────────────────

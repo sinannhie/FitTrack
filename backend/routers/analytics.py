@@ -8,13 +8,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 # ✅ FIXED IMPORTS (relative)
-from ..database import get_db
-from ..schemas.schemas import (
+from database import get_db
+from schemas.schemas import (
     WeightTrendResponse,
     CalorieWeightCorrelationResponse,
     WeeklySummaryResponse,
 )
-from ..services import analytics_service
+from services import analytics_service
 
 router = APIRouter(prefix="/users/{user_id}/analytics", tags=["Analytics"])
 

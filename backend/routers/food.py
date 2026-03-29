@@ -10,12 +10,12 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 # ✅ FIXED IMPORTS (relative)
-from ..database import get_db
-from ..schemas.schemas import (
+from database import get_db
+from schemas.schemas import (
     FoodDBItem, FoodLogCreate, FoodLogResponse, DailyNutritionSummary,
 )
-from ..services import food_service
-from ..utils.food_database import list_all_foods
+from services import food_service
+from utils.food_database import list_all_foods
 
 router = APIRouter(tags=["Food & Nutrition"])
 

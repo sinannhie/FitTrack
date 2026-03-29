@@ -10,9 +10,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 # ✅ FIXED IMPORTS (relative)
-from ..database import get_db
-from ..schemas.schemas import WorkoutCreate, WorkoutResponse, WorkoutSessionSummary
-from ..services import workout_service
+from database import get_db
+from schemas.schemas import WorkoutCreate, WorkoutResponse, WorkoutSessionSummary
+from services import workout_service
 
 router = APIRouter(prefix="/users/{user_id}/workouts", tags=["Workout Tracking"])
 

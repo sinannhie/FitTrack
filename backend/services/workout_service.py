@@ -12,10 +12,10 @@ from sqlalchemy import asc
 from fastapi import HTTPException, status
 
 # ✅ FIXED IMPORTS (relative)
-from ..models.models import Workout
-from ..schemas.schemas import WorkoutCreate, WorkoutResponse, WorkoutSessionSummary
-from ..services.user_service import get_user_or_404
-from ..utils.logger import logger
+from models.models import Workout
+from schemas.schemas import WorkoutCreate, WorkoutResponse, WorkoutSessionSummary
+from services.user_service import get_user_or_404
+from utils.logger import logger
 
 
 def log_workout(db: Session, user_id: int, payload: WorkoutCreate) -> Workout:

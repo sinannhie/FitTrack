@@ -32,3 +32,4 @@ def _build_logger(name: str = "fittrack") -> logging.Logger:
 
 
 logger = _build_logger()
+

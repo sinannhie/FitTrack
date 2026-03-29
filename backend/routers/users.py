@@ -9,9 +9,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 # ✅ FIXED IMPORTS (relative)
-from ..database import get_db
-from ..schemas.schemas import UserCreate, UserUpdate, UserResponse
-from ..services import user_service
+from database import get_db
+from schemas.schemas import UserCreate, UserUpdate, UserResponse
+from services import user_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

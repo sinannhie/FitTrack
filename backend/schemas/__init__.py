@@ -9,3 +9,4 @@ from schemas.schemas import (
     CorrelationPoint, CalorieWeightCorrelationResponse,
     WeeklySummary, WeeklySummaryResponse,
 )
+

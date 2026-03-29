@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 # ✅ FIXED IMPORT (relative)
-from ..database import Base
+from database import Base
 
 
 class User(Base):

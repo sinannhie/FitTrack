@@ -9,11 +9,11 @@ from sqlalchemy import func
 from fastapi import HTTPException, status
 
 # ✅ FIXED IMPORTS
-from ..models.models import FoodLog
-from ..schemas.schemas import FoodLogCreate, DailyNutritionSummary
-from ..services.user_service import get_user_or_404
-from ..utils.food_database import compute_macros, available_food_names
-from ..utils.logger import logger
+from models.models import FoodLog
+from schemas.schemas import FoodLogCreate, DailyNutritionSummary
+from services.user_service import get_user_or_404
+from utils.food_database import compute_macros, available_food_names
+from utils.logger import logger
 
 
 def log_food(db: Session, user_id: int, payload: FoodLogCreate) -> FoodLog:

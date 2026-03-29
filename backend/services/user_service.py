@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 # ✅ FIXED IMPORTS (relative)
-from ..models.models import User
-from ..schemas.schemas import UserCreate, UserUpdate
-from ..utils.logger import logger
+from models.models import User
+from schemas.schemas import UserCreate, UserUpdate
+from utils.logger import logger
 
 
 def create_user(db: Session, payload: UserCreate) -> User:

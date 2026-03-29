@@ -11,10 +11,10 @@ from sqlalchemy import asc
 from fastapi import HTTPException, status
 
 # ✅ FIXED IMPORTS (relative)
-from ..models.models import WeightEntry
-from ..schemas.schemas import WeightEntryCreate, WeightChartPoint, WeightHistoryResponse
-from ..services.user_service import get_user_or_404
-from ..utils.logger import logger
+from models.models import WeightEntry
+from schemas.schemas import WeightEntryCreate, WeightChartPoint, WeightHistoryResponse
+from services.user_service import get_user_or_404
+from utils.logger import logger
 
 
 def add_weight_entry(db: Session, user_id: int, payload: WeightEntryCreate) -> WeightEntry:
