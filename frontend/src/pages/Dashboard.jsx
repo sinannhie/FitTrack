@@ -160,35 +160,36 @@ return ( <div className="space-y-8"> <ErrorBanner message={error} />
         <h2 className="font-display text-2xl tracking-wide">Today's Macros</h2>
         {trend?.trend && <TrendBadge trend={trend.trend} />}
       </div>
-
       <div className="grid sm:grid-cols-2 gap-5">
-        <MacroBar
-          label="Calories"
-          current={nutrition.total_calories}
-          goal={nutrition.calorie_goal}
-          color="ember"
-        />
+  <MacroBar
+    label="Calories"
+    current={nutrition.total_calories}
+    goal={nutrition.calorie_goal}
+    color="ember"
+  />
 
-        <MacroBar
-          label="Protein"
-          current={nutrition.total_protein_g}
-          goal={proteinGoal}
-          color="ice"
-        />
+  <MacroBar
+    label="Protein"
+    current={nutrition.total_protein_g}
+    goal={proteinGoal}
+    color="ice"
+  />
 
-        <MacroBar
-          label="Carbs"
-          current={nutrition.total_carbs_g}
-          color="lime"
-        />
+  <MacroBar
+    label="Carbs"
+    current={nutrition.total_carbs_g}
+    color="lime"
+  />
 
-        <MacroBar
-          label="Fat"
-          current={nutrition.total_fat_g}
-          goal={fatGoal}
-          color="dim"
-        />
-      </div>
+  <MacroBar
+    label="Fat"
+    current={nutrition.total_fat_g}
+    goal={fatGoal}
+    color="dim"
+  />
+</div>
+
+ 
     </Card>
   )}
 
