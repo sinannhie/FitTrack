@@ -2,7 +2,6 @@
 models/models.py
 ────────────────
 SQLAlchemy ORM table definitions.
-All four tables map 1-to-1 with DB tables; relationships handle cascades.
 """
 
 from datetime import datetime
@@ -11,21 +10,19 @@ from sqlalchemy import (
     ForeignKey, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
-from backend.database import Base
+
+# ✅ FIXED IMPORT (relative)
+from ..database import Base
 
 
 class User(Base):
-    """
-    Core identity record. One user → many weight, food, and workout rows.
-    All child rows are hard-deleted when the user is deleted (cascade).
-    """
     __tablename__ = "users"
 
     id            = Column(Integer, primary_key=True, index=True)
     name          = Column(String(100), nullable=False)
-    target_weight = Column(Float,   nullable=True)   # kg
-    calorie_goal  = Column(Integer, nullable=True)   # kcal / day
-    protein_goal  = Column(Integer, nullable=True)   # g / day
+    target_weight = Column(Float,   nullable=True)
+    calorie_goal  = Column(Integer, nullable=True)
+    protein_goal  = Column(Integer, nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
@@ -34,9 +31,6 @@ class User(Base):
 
 
 class WeightEntry(Base):
-    """
-    One body-weight measurement per user per calendar date (upsert at service layer).
-    """
     __tablename__ = "weight_entries"
     __table_args__ = (
         UniqueConstraint("user_id", "date", name="uq_weight_user_date"),
@@ -53,11 +47,6 @@ class WeightEntry(Base):
 
 
 class FoodLog(Base):
-    """
-    One food-consumption event.
-    Macros are computed at insert time from the food DB and stored here
-    so reads are fast (no runtime math needed for summaries / charts).
-    """
     __tablename__ = "food_logs"
 
     id         = Column(Integer, primary_key=True, index=True)
@@ -66,7 +55,6 @@ class FoodLog(Base):
     food_name  = Column(String(150), nullable=False)
     quantity_g = Column(Float,   nullable=False)
 
-    # Pre-computed macros for the actual quantity consumed
     calories   = Column(Float, nullable=False)
     protein_g  = Column(Float, nullable=False)
     carbs_g    = Column(Float, nullable=False)
@@ -78,10 +66,6 @@ class FoodLog(Base):
 
 
 class Workout(Base):
-    """
-    One exercise block (name + sets × reps × weight).
-    Multiple rows per date represent different exercises in the same session.
-    """
     __tablename__ = "workouts"
 
     id            = Column(Integer, primary_key=True, index=True)
@@ -90,7 +74,7 @@ class Workout(Base):
     exercise_name = Column(String(150), nullable=False)
     sets          = Column(Integer, nullable=False)
     reps          = Column(Integer, nullable=False)
-    weight_kg     = Column(Float,   nullable=True)   # None for bodyweight exercises
+    weight_kg     = Column(Float,   nullable=True)
     notes         = Column(Text,    nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow)
 
