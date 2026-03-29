@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 # ── Connection URL ─────────────────────────────────────────────────────────────
 # SQLite for development / MVP. Switch to PostgreSQL by setting env var:
 #   export DATABASE_URL="postgresql+psycopg2://user:pass@localhost/fittrack"
-DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./fittrack.db")
+DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres.remqrevresvvmzkcuwgg:[Msinannhiefeb14]@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres")
 
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
