@@ -1,4 +1,4 @@
-from backend.services import (
+from services import (
     user_service,
     weight_service,
     food_service,
