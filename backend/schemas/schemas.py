@@ -15,18 +15,22 @@ from pydantic import BaseModel, Field, ConfigDict
 # ══════════════════════════════════════════════════════════════════════════════
 
 class UserCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100, examples=["Sinan"])
-    target_weight: Optional[float] = Field(None, gt=0)
-    calorie_goal: Optional[int] = Field(None, gt=0)
-    protein_goal: Optional[int] = Field(None, gt=0)
-
+    name: str
+    age: int
+    height: float
+    weight: float
+    goal: str
+    target_weight: Optional[float] = None
+    calorie_goal: Optional[int] = None
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
+    age: Optional[int] = Field(None, ge=10, le=120)
+    height: Optional[float] = Field(None, gt=0)
+    weight: Optional[float] = Field(None, gt=0)
+    goal: Optional[str] = None
     target_weight: Optional[float] = Field(None, gt=0)
     calorie_goal: Optional[int] = Field(None, gt=0)
-    protein_goal: Optional[int] = Field(None, gt=0)
-
 
 class UserResponse(UserCreate):
     model_config = ConfigDict(from_attributes=True)
