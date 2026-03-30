@@ -3,44 +3,93 @@ import { getUser, createUser } from '../services/api'
 
 const UserContext = createContext(null)
 
+const STORAGE_ID_KEY   = 'fittrack_user_id'
+const STORAGE_USER_KEY = 'fittrack_user_cache'
+
+// ─── helpers ───────────────────────────────────────────────
+const saveToStorage = (user) => {
+  localStorage.setItem(STORAGE_ID_KEY,   user.id)
+  localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user))
+}
+
+const clearStorage = () => {
+  localStorage.removeItem(STORAGE_ID_KEY)
+  localStorage.removeItem(STORAGE_USER_KEY)
+}
+
+const loadCachedUser = () => {
+  try {
+    const cached = localStorage.getItem(STORAGE_USER_KEY)
+    return cached ? JSON.parse(cached) : null
+  } catch {
+    return null
+  }
+}
+// ───────────────────────────────────────────────────────────
+
 export function UserProvider({ children }) {
-  const [user, setUser] = useState(null)
+  // ✅ Initialise from cache instantly — no flicker, no onboarding flash
+  const [user, setUser]       = useState(() => loadCachedUser())
   const [loading, setLoading] = useState(true)
 
-  // Persist user ID in localStorage
   useEffect(() => {
-    const savedId = localStorage.getItem('fittrack_user_id')
-    if (savedId) {
-      getUser(savedId)
-        .then((res) => setUser(res.data))
-        .catch(() => localStorage.removeItem('fittrack_user_id'))
-        .finally(() => setLoading(false))
-    } else {
+    const savedId = localStorage.getItem(STORAGE_ID_KEY)
+
+    if (!savedId) {
       setLoading(false)
+      return
     }
+
+    // Refresh from API silently in background
+    getUser(savedId)
+      .then((res) => {
+        const freshUser = res.data
+        setUser(freshUser)
+        saveToStorage(freshUser)
+      })
+      .catch((err) => {
+        console.warn('[FitTrack] Could not refresh user from API:', err.message)
+        // ✅ Do NOT wipe storage on API failure (Render spin-down, network hiccup)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
+  // Create brand new user (called from Setup step 2)
   const login = async (userData) => {
-    const res = await createUser(userData)
+    const res     = await createUser(userData)
     const newUser = res.data
-    localStorage.setItem('fittrack_user_id', newUser.id)
+    saveToStorage(newUser)
     setUser(newUser)
     return newUser
   }
 
+  // ✅ NEW: Restore an existing user by ID (called from Setup "Continue" button)
+  const loginAsExisting = async (userId) => {
+    const res      = await getUser(userId)
+    const existing = res.data
+    saveToStorage(existing)
+    setUser(existing)
+    return existing
+  }
+
   const logout = () => {
-    localStorage.removeItem('fittrack_user_id')
+    clearStorage()
     setUser(null)
   }
 
   const refreshUser = async () => {
     if (!user) return
-    const res = await getUser(user.id)
-    setUser(res.data)
+    try {
+      const res = await getUser(user.id)
+      setUser(res.data)
+      saveToStorage(res.data)
+    } catch (err) {
+      console.warn('[FitTrack] refreshUser failed:', err.message)
+    }
   }
 
   return (
-    <UserContext.Provider value={{ user, loading, login, logout, refreshUser }}>
+    <UserContext.Provider value={{ user, loading, login, loginAsExisting, logout, refreshUser }}>
       {children}
     </UserContext.Provider>
   )
