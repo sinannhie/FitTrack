@@ -73,7 +73,7 @@ class WeightEntry(Base):
 
     id         = Column(Integer, primary_key=True, index=True)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    weight     = Column(Float, nullable=False)
+    weight_kg  = Column(Float, nullable=False)
     date       = Column(Date, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

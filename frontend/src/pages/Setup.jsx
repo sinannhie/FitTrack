@@ -122,6 +122,7 @@ export default function Setup() {
         goal:          form.goal,
         target_weight: form.target_weight ? parseFloat(form.target_weight) : null,
         calorie_goal:  calories,
+        protein_goal:  Math.round(parseFloat(form.weight) * 2)
       })
     } catch (err) {
       setError(err.message)

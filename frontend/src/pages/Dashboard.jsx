@@ -79,7 +79,16 @@ export default function Dashboard() {
     user?.currentWeight ??
     null
 
-  const { protein: proteinGoal, fat: fatGoal } = calcMacros(userWeight)
+  // REMOVE these local calculation functions entirely:
+// const calcMacros = ...
+// const calcCarbsGoal = ...
+
+// REPLACE with:
+  const proteinGoal = user?.protein_goal ?? 0
+  const fatGoal     = Math.round((user?.weight ?? 0) * 0.7)
+  const carbsGoal   = user?.calorie_goal
+    ? Math.max(0, Math.round((user.calorie_goal - proteinGoal * 4 - fatGoal * 9) / 4))
+    : 0
 
   const [trend, setTrend] = useState(null)
   const [nutrition, setNutrition] = useState(null)
@@ -175,12 +184,12 @@ export default function Dashboard() {
 
         {/* ✅ FIX 1: Protein goal now shows weight-based target */}
         <StatCard
-          label="Protein Today"
-          value={Math.round(nutrition?.total_protein_g ?? 0)}
-          unit="g"
-          sub={proteinGoal > 0 ? `Goal: ${proteinGoal}g` : 'Goal: not set'}
-          accent="ice"
-          icon="◉"
+           label="Protein Today"
+           value={Math.round(nutrition?.total_protein_g ?? 0)}
+           unit="g"
+           sub={proteinGoal > 0 ? `Goal: ${proteinGoal}g` : 'No goal set'}
+           accent="ice"
+           icon="◉"
         />
 
         <StatCard
