@@ -19,7 +19,7 @@ class User(Base):
 
     age           = Column(Integer)
     height        = Column(Float)
-    weight        = Column(Float)
+    weight = Column(Float, nullable=False)  
     goal          = Column(String, nullable=False)
 
     target_weight = Column(Float,   nullable=True)
