@@ -6,7 +6,7 @@ const UserContext = createContext(null)
 const STORAGE_ID_KEY   = 'fittrack_user_id'
 const STORAGE_USER_KEY = 'fittrack_user_cache'
 
-// ─── helpers ───────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────
 const saveToStorage = (user) => {
   localStorage.setItem(STORAGE_ID_KEY,   user.id)
   localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user))
@@ -25,12 +25,12 @@ const loadCachedUser = () => {
     return null
   }
 }
-// ───────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
 
 export function UserProvider({ children }) {
-  // ✅ Initialise from cache instantly — no flicker, no onboarding flash
+  // Initialise from cache instantly — no flicker, no onboarding flash
   const [user, setUser]       = useState(() => loadCachedUser())
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !!localStorage.getItem(STORAGE_ID_KEY))
 
   useEffect(() => {
     const savedId = localStorage.getItem(STORAGE_ID_KEY)
@@ -40,7 +40,7 @@ export function UserProvider({ children }) {
       return
     }
 
-    // Refresh from API silently in background
+    // Silently refresh from API in background
     getUser(savedId)
       .then((res) => {
         const freshUser = res.data
@@ -48,8 +48,8 @@ export function UserProvider({ children }) {
         saveToStorage(freshUser)
       })
       .catch((err) => {
+        // Do NOT wipe storage on network failure (Render spin-down, hiccup)
         console.warn('[FitTrack] Could not refresh user from API:', err.message)
-        // ✅ Do NOT wipe storage on API failure (Render spin-down, network hiccup)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -63,7 +63,7 @@ export function UserProvider({ children }) {
     return newUser
   }
 
-  // ✅ NEW: Restore an existing user by ID (called from Setup "Continue" button)
+  // Restore an existing user by ID (called from Setup login screen)
   const loginAsExisting = async (userId) => {
     const res      = await getUser(userId)
     const existing = res.data
