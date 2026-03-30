@@ -28,14 +28,21 @@ import {
   Bar,
 } from 'recharts'
 
-// ✅ Macro calculation
+// ✅ FIX 1: Macro calculation using weight — supports multiple possible field names
 const calcMacros = (weight) => {
-  if (!weight) return { protein: 0, fat: 0 }
+  if (!weight || isNaN(weight)) return { protein: 0, fat: 0, carbs: 0 }
 
-  return {
-    protein: Math.round(weight * 2),
-    fat: Math.round(weight * 0.7),
-  }
+  const protein = Math.round(weight * 2)       // 2g per kg bodyweight
+  const fat = Math.round(weight * 0.7)         // 0.7g per kg bodyweight
+  // Carbs goal derived from calorie budget after protein & fat (calculated later with calorie_goal)
+  return { protein, fat }
+}
+
+// ✅ FIX 2: Carbs goal calculation using remaining calories
+const calcCarbsGoal = (calorieGoal, proteinGoal, fatGoal) => {
+  if (!calorieGoal) return 0
+  const remaining = calorieGoal - proteinGoal * 4 - fatGoal * 9  // protein=4kcal/g, fat=9kcal/g
+  return Math.max(0, Math.round(remaining / 4))                  // carbs=4kcal/g
 }
 
 const today = () => new Date().toISOString().split('T')[0]
@@ -63,7 +70,16 @@ function CustomTooltip({ active, payload, label }) {
 
 export default function Dashboard() {
   const { user } = useUser()
-  const { protein: proteinGoal, fat: fatGoal } = calcMacros(user?.weight)
+
+  // ✅ FIX 1: Try all common field names your backend might use for weight
+  const userWeight =
+    user?.weight ??
+    user?.weight_kg ??
+    user?.current_weight ??
+    user?.currentWeight ??
+    null
+
+  const { protein: proteinGoal, fat: fatGoal } = calcMacros(userWeight)
 
   const [trend, setTrend] = useState(null)
   const [nutrition, setNutrition] = useState(null)
@@ -74,6 +90,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return
+
+    // 🛠️ DEBUG: Remove this log once protein goal is confirmed working
+    console.log('[FitTrack] user object:', user)
+    console.log('[FitTrack] resolved userWeight:', userWeight)
+    console.log('[FitTrack] proteinGoal:', proteinGoal, '| fatGoal:', fatGoal)
 
     Promise.all([
       getWeightTrend(user.id, 30),
@@ -112,6 +133,9 @@ export default function Dashboard() {
     ? Math.round((nutrition.total_calories / nutrition.calorie_goal) * 100)
     : null
 
+  // ✅ FIX 2: Carbs goal computed from calorie budget
+  const carbsGoal = calcCarbsGoal(nutrition?.calorie_goal, proteinGoal, fatGoal)
+
   return (
     <div className="space-y-8">
       <ErrorBanner message={error} />
@@ -149,11 +173,12 @@ export default function Dashboard() {
           icon="◎"
         />
 
+        {/* ✅ FIX 1: Protein goal now shows weight-based target */}
         <StatCard
           label="Protein Today"
           value={Math.round(nutrition?.total_protein_g ?? 0)}
           unit="g"
-          sub={`Goal: ${proteinGoal}g`}
+          sub={proteinGoal > 0 ? `Goal: ${proteinGoal}g` : 'Goal: not set'}
           accent="ice"
           icon="◉"
         />
@@ -189,6 +214,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-5">
+            {/* Calories — uses API calorie_goal */}
             <MacroBar
               label="Calories"
               current={nutrition.total_calories}
@@ -196,6 +222,7 @@ export default function Dashboard() {
               color="ember"
             />
 
+            {/* ✅ FIX 1: Protein goal = weight × 2 */}
             <MacroBar
               label="Protein"
               current={nutrition.total_protein_g}
@@ -203,12 +230,15 @@ export default function Dashboard() {
               color="ice"
             />
 
+            {/* ✅ FIX 2: Carbs goal now calculated from remaining calories */}
             <MacroBar
               label="Carbs"
               current={nutrition.total_carbs_g}
+              goal={carbsGoal}
               color="lime"
             />
 
+            {/* ✅ FIX 1: Fat goal = weight × 0.7 */}
             <MacroBar
               label="Fat"
               current={nutrition.total_fat_g}
