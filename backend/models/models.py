@@ -25,6 +25,8 @@ class User(Base):
     target_weight = Column(Float,   nullable=True)
     calorie_goal  = Column(Integer, nullable=True)
 
+    protein_goal  = Column(Integer, nullable=True)  
+
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")

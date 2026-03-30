@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
     goal: str
     target_weight: Optional[float] = None
     calorie_goal: Optional[int] = None
+    protein_goal: Optional[int] = None  
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -31,6 +32,7 @@ class UserUpdate(BaseModel):
     goal: Optional[str] = None
     target_weight: Optional[float] = Field(None, gt=0)
     calorie_goal: Optional[int] = Field(None, gt=0)
+    protein_goal: Optional[int] = Field(None, gt=0)
 
 class UserResponse(UserCreate):
     model_config = ConfigDict(from_attributes=True)
