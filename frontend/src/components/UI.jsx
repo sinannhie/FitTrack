@@ -148,25 +148,46 @@ export function Divider() {
 
 // Progress bar for macro tracking
 export function MacroBar({ label, current, goal, color = 'lime' }) {
-  const pct = goal ? Math.min((current / goal) * 100, 100) : 0
-  const over = goal ? current > goal : false
   const colorMap = {
-    lime: 'bg-lime',
+    lime:  'bg-lime',
     ember: 'bg-ember',
-    ice: 'bg-ice',
+    ice:   'bg-ice',
+    dim:   'bg-dim',
   }
+
+  const hasGoal = goal != null && goal > 0
+  const over    = hasGoal && current > goal
+
+  // With goal    → % of goal, capped at 100%
+  // Without goal → % of a sensible reference so bar still moves:
+  //                Calories: 3000 kcal ref | everything else: 300 g ref
+  let pct
+  if (hasGoal) {
+    pct = Math.min((current / goal) * 100, 100)
+  } else {
+    const ref = label === 'Calories' ? 3000 : 300
+    pct = Math.min((current / ref) * 100, 100)
+  }
+
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-xs">
         <span className="text-dim font-medium uppercase tracking-wider">{label}</span>
         <span className={`font-mono ${over ? 'text-ember' : 'text-dim'}`}>
-          {Math.round(current)}{goal ? ` / ${goal}` : ''}
-          {goal && <span className="text-dim/60"> {over ? 'over' : 'left'}</span>}
+          {Math.round(current)}
+          {hasGoal && (
+            <>
+              {' / '}{goal}
+              <span className="text-dim/60"> {over ? 'over' : 'left'}</span>
+            </>
+          )}
         </span>
       </div>
       <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-700 ${over ? 'bg-ember' : colorMap[color]}`}
+          className={`h-full rounded-full transition-all duration-700 ${
+            over ? 'bg-ember' : colorMap[color]
+          }`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -177,10 +198,10 @@ export function MacroBar({ label, current, goal, color = 'lime' }) {
 // Trend indicator arrow
 export function TrendBadge({ trend }) {
   const map = {
-    losing: { label: '↓ Losing', color: 'ice' },
-    gaining: { label: '↑ Gaining', color: 'ember' },
-    stable: { label: '→ Stable', color: 'lime' },
-    insufficient_data: { label: '? No data', color: 'gray' },
+    losing:            { label: '↓ Losing',  color: 'ice'   },
+    gaining:           { label: '↑ Gaining', color: 'ember' },
+    stable:            { label: '→ Stable',  color: 'lime'  },
+    insufficient_data: { label: '? No data', color: 'gray'  },
   }
   const config = map[trend] || map.insufficient_data
   return <Badge color={config.color}>{config.label}</Badge>
