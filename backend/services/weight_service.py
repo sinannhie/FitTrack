@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import asc
 from fastapi import HTTPException, status
 
-# ✅ FIXED IMPORTS (relative)
 from models.models import WeightEntry
 from schemas.schemas import WeightEntryCreate, WeightChartPoint, WeightHistoryResponse
 from services.user_service import get_user_or_404
@@ -29,15 +28,16 @@ def add_weight_entry(db: Session, user_id: int, payload: WeightEntryCreate) -> W
 
     if existing:
         existing.weight_kg = payload.weight_kg
-        existing.notes = payload.notes
         db.commit()
         db.refresh(existing)
-
         logger.info(f"Updated weight user={user_id} date={payload.date} weight={payload.weight_kg}kg")
-
         return existing
 
-    entry = WeightEntry(user_id=user_id, **payload.model_dump())
+    entry = WeightEntry(
+        user_id=user_id,
+        weight_kg=payload.weight_kg,
+        date=payload.date,
+    )
 
     db.add(entry)
     db.commit()

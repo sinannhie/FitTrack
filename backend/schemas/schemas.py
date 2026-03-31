@@ -22,7 +22,7 @@ class UserCreate(BaseModel):
     goal: str
     target_weight: Optional[float] = None
     calorie_goal: Optional[int] = None
-    protein_goal: Optional[int] = None  
+    protein_goal: Optional[int] = None
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -47,13 +47,15 @@ class UserResponse(UserCreate):
 class WeightEntryCreate(BaseModel):
     date: datetime.date = Field(..., description="Measurement date (YYYY-MM-DD)")
     weight_kg: float = Field(..., gt=0, lt=500)
-    notes: Optional[str] = None
+    # notes removed — not in DB schema
 
 
-class WeightEntryResponse(WeightEntryCreate):
+class WeightEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     user_id: int
+    date: datetime.date
+    weight_kg: float
     created_at: datetime.datetime
 
 
