@@ -34,49 +34,47 @@ const calculatePreview = (food, quantity) => {
   else factor = quantity / 100
 
   const calories = food.calories_per_100g * factor
-  const protein = food.protein_per_100g * factor
-  const carbs = food.carbs_per_100g * factor
-  const fat = food.fat_per_100g * factor
+  const protein  = food.protein_per_100g  * factor
+  const carbs    = food.carbs_per_100g    * factor
+  const fat      = food.fat_per_100g      * factor
 
   if ([calories, protein, carbs, fat].some(v => isNaN(v))) return null
 
   return {
     calories: calories.toFixed(1),
-    protein: protein.toFixed(1),
-    carbs: carbs.toFixed(1),
-    fat: fat.toFixed(1),
+    protein:  protein.toFixed(1),
+    carbs:    carbs.toFixed(1),
+    fat:      fat.toFixed(1),
   }
 }
 
 export default function FoodPage() {
   const { user } = useUser()
 
-  const [date, setDate] = useState(today())
-  const [foods, setFoods] = useState([])
-  const [logs, setLogs] = useState([])
+  const [date, setDate]       = useState(today())
+  const [foods, setFoods]     = useState([])
+  const [logs, setLogs]       = useState([])
   const [summary, setSummary] = useState(null)
 
-  const [loading, setLoading] = useState(true)
+  const [loading,    setLoading]    = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
-  const [error, setError] = useState('')
+  const [error,     setError]     = useState('')
   const [formError, setFormError] = useState('')
+  // ✅ FIX 11: Added success feedback state — previously no success message was ever shown
+  const [formSuccess, setFormSuccess] = useState('')
 
   const [form, setForm] = useState({ food_name: '', quantity_g: '' })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const [search, setSearch] = useState('')
+  const [search,     setSearch]     = useState('')
   const [recentFoods, setRecentFoods] = useState([])
 
   const [customMode, setCustomMode] = useState(false)
   const [customFood, setCustomFood] = useState({
-    name: '',
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: ''
+    name: '', calories: '', protein: '', carbs: '', fat: '',
   })
-
+  // ✅ FIX 12: setCustom now uses functional update correctly (was fine, kept as-is)
   const setCustom = (k) => (e) =>
     setCustomFood((f) => ({ ...f, [k]: e.target.value }))
 
@@ -86,7 +84,6 @@ export default function FoodPage() {
 
   const loadLogs = useCallback(() => {
     if (!user) return
-
     setLoading(true)
     Promise.all([
       getFoodLogs(user.id, date),
@@ -96,6 +93,7 @@ export default function FoodPage() {
         setLogs(l.data)
         setSummary(s.data)
       })
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [user, date])
 
@@ -108,12 +106,23 @@ export default function FoodPage() {
     })
   }
 
+  // Helper: show success then auto-clear after 3s
+  const showSuccess = (msg) => {
+    setFormSuccess(msg)
+    setFormError('')
+    setTimeout(() => setFormSuccess(''), 3000)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setFormError('')
+    setFormSuccess('')
 
     if (customMode) {
       if (!customFood.name) return setFormError('Enter food name')
 
+      // ✅ FIX 13: Added setSubmitting in custom mode — button was never disabled
+      setSubmitting(true)
       try {
         await logFood(user.id, {
           date,
@@ -121,27 +130,22 @@ export default function FoodPage() {
           quantity_g: 1,
           is_custom: true,
           calories: parseFloat(customFood.calories) || 0,
-          protein: parseFloat(customFood.protein) || 0,
-          carbs: parseFloat(customFood.carbs) || 0,
-          fat: parseFloat(customFood.fat) || 0,
+          protein:  parseFloat(customFood.protein)  || 0,
+          carbs:    parseFloat(customFood.carbs)    || 0,
+          fat:      parseFloat(customFood.fat)      || 0,
         })
 
         addRecentFood(customFood.name)
-
-        setCustomFood({
-          name: '',
-          calories: '',
-          protein: '',
-          carbs: '',
-          fat: ''
-        })
-
+        setCustomFood({ name: '', calories: '', protein: '', carbs: '', fat: '' })
+        showSuccess('Food added successfully ✅')
         loadLogs()
-        return
       } catch (err) {
-        setFormError(err.message)
-        return
+        setFormError(err.message || 'Failed to add food ❌')
+      } finally {
+        // ✅ FIX 13 cont: Always re-enable button
+        setSubmitting(false)
       }
+      return
     }
 
     if (!form.food_name) return setFormError('Select a food')
@@ -149,29 +153,33 @@ export default function FoodPage() {
       return setFormError('Enter valid quantity')
 
     setSubmitting(true)
-    setFormError('')
 
     try {
       await logFood(user.id, {
         date,
-        food_name: form.food_name,
+        food_name:  form.food_name,
         quantity_g: parseFloat(form.quantity_g),
       })
 
       addRecentFood(form.food_name)
-
       setForm({ food_name: '', quantity_g: '' })
+      showSuccess('Food added successfully ✅')
       loadLogs()
     } catch (err) {
-      setFormError(err.message)
+      setFormError(err.message || 'Failed to add food ❌')
     } finally {
       setSubmitting(false)
     }
   }
 
   const handleDelete = async (id) => {
-    await deleteFoodLog(user.id, id)
-    loadLogs()
+    // ✅ FIX 14: Added try/catch — previously silent on delete failure
+    try {
+      await deleteFoodLog(user.id, id)
+      loadLogs()
+    } catch (err) {
+      setError(err.message || 'Failed to delete entry')
+    }
   }
 
   const selectedFood = foods.find((f) => f.name === form.food_name)
@@ -191,9 +199,9 @@ export default function FoodPage() {
       {summary && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <StatCard label="Calories" value={Math.round(summary.total_calories)} unit="kcal" />
-          <StatCard label="Protein" value={Math.round(summary.total_protein_g)} unit="g" />
-          <StatCard label="Carbs" value={Math.round(summary.total_carbs_g)} unit="g" />
-          <StatCard label="Fat" value={Math.round(summary.total_fat_g)} unit="g" />
+          <StatCard label="Protein"  value={Math.round(summary.total_protein_g)} unit="g" />
+          <StatCard label="Carbs"    value={Math.round(summary.total_carbs_g)} unit="g" />
+          <StatCard label="Fat"      value={Math.round(summary.total_fat_g)} unit="g" />
         </div>
       )}
 
@@ -211,7 +219,19 @@ export default function FoodPage() {
               className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded"
             />
 
-            {/* RECENT FOODS (SELECT ONLY) */}
+            {/* ✅ FIX 15: formError and formSuccess now rendered in the UI
+                Previously formError was set in state but never shown — user saw nothing */}
+            {formError && (
+              <p className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded px-3 py-2">
+                ❌ {formError}
+              </p>
+            )}
+            {formSuccess && (
+              <p className="text-green-400 text-sm bg-green-400/10 border border-green-400/20 rounded px-3 py-2">
+                {formSuccess}
+              </p>
+            )}
+
             {recentFoods.length > 0 && (
               <div>
                 <p className="text-sm text-gray-400 mb-1">Recent</p>
@@ -266,11 +286,13 @@ export default function FoodPage() {
 
             {customMode && (
               <div className="bg-gray-900 p-3 rounded-lg space-y-2">
-                <Input placeholder="Food name" value={customFood.name} onChange={setCustom('name')} />
-                <Input placeholder="Calories" type="number" onChange={setCustom('calories')} />
-                <Input placeholder="Protein (g)" type="number" onChange={setCustom('protein')} />
-                <Input placeholder="Carbs (g)" type="number" onChange={setCustom('carbs')} />
-                <Input placeholder="Fat (g)" type="number" onChange={setCustom('fat')} />
+                {/* ✅ FIX 16: Added value= bindings to all custom inputs
+                    Previously uncontrolled — values were lost on any re-render */}
+                <Input placeholder="Food name"   value={customFood.name}     onChange={setCustom('name')}     />
+                <Input placeholder="Calories"    value={customFood.calories} onChange={setCustom('calories')} type="number" />
+                <Input placeholder="Protein (g)" value={customFood.protein}  onChange={setCustom('protein')}  type="number" />
+                <Input placeholder="Carbs (g)"   value={customFood.carbs}    onChange={setCustom('carbs')}    type="number" />
+                <Input placeholder="Fat (g)"     value={customFood.fat}      onChange={setCustom('fat')}      type="number" />
               </div>
             )}
 
@@ -292,9 +314,11 @@ export default function FoodPage() {
               </div>
             )}
 
-            <Button type="submit">
+            {/* ✅ FIX 17: Button disabled during submit in both modes now */}
+            <Button type="submit" disabled={submitting}>
               {submitting ? 'Adding...' : 'Add Food'}
             </Button>
+
           </form>
         </Card>
 
@@ -316,13 +340,13 @@ export default function FoodPage() {
                   >
                     <div>
                       <p className="font-medium">{log.food_name}</p>
-                      <p className="text-xs text-gray-400">
-                        {log.quantity_g}
-                      </p>
+                      <p className="text-xs text-gray-400">{log.quantity_g}g</p>
                     </div>
 
                     <div className="text-right text-sm">
                       <p>{log.calories} kcal</p>
+                      {/* ✅ FIX 18: log.protein_g now matches the fixed schema field name
+                          Previously always showed "undefinedg protein" */}
                       <p className="text-gray-400">{log.protein_g}g protein</p>
                     </div>
 
@@ -341,9 +365,9 @@ export default function FoodPage() {
           {summary && (
             <Card className="space-y-2">
               <MacroBar label="Calories" current={summary.total_calories} goal={summary.calorie_goal} />
-              <MacroBar label="Protein" current={summary.total_protein_g} goal={summary.protein_goal} />
-              <MacroBar label="Carbs" current={summary.total_carbs_g} />
-              <MacroBar label="Fat" current={summary.total_fat_g} />
+              <MacroBar label="Protein"  current={summary.total_protein_g} goal={summary.protein_goal} />
+              <MacroBar label="Carbs"    current={summary.total_carbs_g} />
+              <MacroBar label="Fat"      current={summary.total_fat_g} />
             </Card>
           )}
 

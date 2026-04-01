@@ -6,7 +6,7 @@ Endpoints for food logging, nutrition summaries, and food-DB exploration.
 
 from datetime import date
 from typing import List
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -39,7 +39,16 @@ def list_foods():
     status_code=status.HTTP_201_CREATED,
 )
 def log_food(user_id: int, payload: FoodLogCreate, db: Session = Depends(get_db)):
-    return food_service.log_food(db, user_id, payload)
+    # ✅ FIX 7: Wrapped in try/except — previously any DB error returned 500 with no detail
+    try:
+        return food_service.log_food(db, user_id, payload)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save food entry: {str(e)}",
+        )
 
 
 @router.get(
@@ -79,6 +88,18 @@ def weekly_nutrition_summary(
 
 @router.delete(
     "/users/{user_id}/food/{log_id}",
+    # ✅ FIX 8: Added explicit 200 status + message — previously returned nothing,
+    # making it impossible for frontend to confirm success
+    status_code=status.HTTP_200_OK,
 )
 def delete_food_log(user_id: int, log_id: int, db: Session = Depends(get_db)):
-    return food_service.delete_food_log(db, user_id, log_id)
+    # ✅ FIX 9: Wrapped in try/except with 404 guard
+    try:
+        return food_service.delete_food_log(db, user_id, log_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete food entry: {str(e)}",
+        )

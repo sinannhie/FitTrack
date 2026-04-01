@@ -11,17 +11,13 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# ✅ FIXED IMPORTS (relative)
-
 from database import Base, engine
 
 Base.metadata.create_all(bind=engine)
 from utils.logger import logger
 
-# Import models so SQLAlchemy registers them
 from models import models  # noqa: F401
 
-# Routers
 from routers import users, weight, food, workouts, analytics
 
 
@@ -52,7 +48,15 @@ app = FastAPI(
 # ── CORS ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://fit-track-ten-opal.vercel.app"],
+    allow_origins=[
+        "https://fit-track-ten-opal.vercel.app",
+        # ✅ FIX 10: Added localhost origins — previously ALL local dev requests
+        # were blocked by CORS, making it impossible to test anything locally
+        "http://localhost:3000",
+        "http://localhost:5173",  # Vite default port
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -90,10 +94,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 # ── Routers ──────────────────────────────────────────────────────
 API_PREFIX = "/api/v1"
 
-app.include_router(users.router, prefix=API_PREFIX)
-app.include_router(weight.router, prefix=API_PREFIX)
-app.include_router(food.router, prefix=API_PREFIX)
-app.include_router(workouts.router, prefix=API_PREFIX)
+app.include_router(users.router,     prefix=API_PREFIX)
+app.include_router(weight.router,    prefix=API_PREFIX)
+app.include_router(food.router,      prefix=API_PREFIX)
+app.include_router(workouts.router,  prefix=API_PREFIX)
 app.include_router(analytics.router, prefix=API_PREFIX)
 
 

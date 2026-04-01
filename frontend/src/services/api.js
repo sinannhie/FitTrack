@@ -22,39 +22,46 @@ api.interceptors.response.use(
 )
 
 // ── Users ────────────────────────────────────────────────────────────────────
-export const createUser = (data) => api.post('/users/', data)
-export const getUser = (id) => api.get(`/users/${id}`)
-export const updateUser = (id, data) => api.patch(`/users/${id}`, data)
+export const createUser  = (data)      => api.post('/users/', data)
+export const getUser     = (id)        => api.get(`/users/${id}`)
+export const updateUser  = (id, data)  => api.patch(`/users/${id}`, data)
 
 // ── Weight ───────────────────────────────────────────────────────────────────
-export const logWeight = (userId, data) => api.post(`/users/${userId}/weight/`, data)
-export const getWeightHistory = (userId, params = {}) =>
-  api.get(`/users/${userId}/weight/`, { params })
+export const logWeight        = (userId, data)         => api.post(`/users/${userId}/weight/`, data)
+export const getWeightHistory = (userId, params = {})  => api.get(`/users/${userId}/weight/`, { params })
 
 // ── Food ─────────────────────────────────────────────────────────────────────
 export const getFoods = () => api.get('/foods')
+
+// ✅ NOTE: logFood payload shape must include is_custom + macro fields for custom entries.
+// These are now accepted by the backend after the FoodLogCreate schema fix.
+// Standard entry:  { date, food_name, quantity_g }
+// Custom entry:    { date, food_name, quantity_g: 1, is_custom: true, calories, protein, carbs, fat }
 export const logFood = (userId, data) => api.post(`/users/${userId}/food`, data)
+
 export const getFoodLogs = (userId, date) =>
   api.get(`/users/${userId}/food`, { params: { log_date: date } })
+
 export const getNutritionSummary = (userId, date) =>
   api.get(`/users/${userId}/nutrition/summary`, { params: { summary_date: date } })
+
 export const deleteFoodLog = (userId, logId) =>
   api.delete(`/users/${userId}/food/${logId}`)
 
 // ── Workouts ─────────────────────────────────────────────────────────────────
-export const logWorkout = (userId, data) => api.post(`/users/${userId}/workouts/`, data)
-export const getWorkoutHistory = (userId, params = {}) =>
-  api.get(`/users/${userId}/workouts/`, { params })
-export const deleteWorkout = (userId, workoutId) =>
-  api.delete(`/users/${userId}/workouts/${workoutId}`)
+export const logWorkout        = (userId, data)          => api.post(`/users/${userId}/workouts/`, data)
+export const getWorkoutHistory = (userId, params = {})   => api.get(`/users/${userId}/workouts/`, { params })
+export const deleteWorkout     = (userId, workoutId)     => api.delete(`/users/${userId}/workouts/${workoutId}`)
 
 // ── Analytics ────────────────────────────────────────────────────────────────
 export const getWeightTrend = (userId, periodDays = 30) =>
   api.get(`/users/${userId}/analytics/weight-trend`, { params: { period_days: periodDays } })
+
 export const getCalorieWeightCorrelation = (userId, periodDays = 30) =>
   api.get(`/users/${userId}/analytics/calorie-weight-correlation`, {
     params: { period_days: periodDays },
   })
+
 export const getWeeklySummary = (userId, numWeeks = 8) =>
   api.get(`/users/${userId}/analytics/weekly-summary`, { params: { num_weeks: numWeeks } })
 

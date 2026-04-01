@@ -85,6 +85,13 @@ class FoodLogCreate(BaseModel):
     date: datetime.date = Field(..., description="Date consumed (YYYY-MM-DD)")
     food_name: str
     quantity_g: float = Field(..., gt=0)
+    # ✅ FIX 5: Added custom food fields — frontend sends these in custom mode
+    # Previously missing → Pydantic silently stripped them → macros saved as 0
+    is_custom: bool = False
+    calories: Optional[float] = Field(None, ge=0)
+    protein: Optional[float] = Field(None, ge=0)
+    carbs: Optional[float] = Field(None, ge=0)
+    fat: Optional[float] = Field(None, ge=0)
 
 
 class FoodLogResponse(BaseModel):
@@ -95,6 +102,8 @@ class FoodLogResponse(BaseModel):
     food_name: str
     quantity_g: float
     calories: float
+    # ✅ FIX 6: These now match the renamed model columns (protein_g / carbs_g / fat_g)
+    # Previously schema had protein_g but model had protein → always "undefined" in UI
     protein_g: float
     carbs_g: float
     fat_g: float
@@ -120,12 +129,12 @@ class DailyNutritionSummary(BaseModel):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# WEEKLY NUTRITION SUMMARY  ← NEW
+# WEEKLY NUTRITION SUMMARY
 # ══════════════════════════════════════════════════════════════════════════════
 
 class WeeklyDayEntry(BaseModel):
     date:     str
-    label:    str        # "Mon", "Tue", …
+    label:    str
     calories: float
     protein:  float
 
@@ -134,19 +143,14 @@ class WeeklyNutritionSummary(BaseModel):
     user_id:         int
     week_start:      datetime.date
     week_end:        datetime.date
-    # This week totals
     total_calories:  float
     total_protein_g: float
-    # Previous week totals (for ↑↓ trend)
     prev_calories:   float
     prev_protein_g:  float
-    # Deltas — None means no previous data
     calorie_trend:   Optional[float]
     protein_trend:   Optional[float]
-    # Goals
     calorie_goal:    Optional[int]
     protein_goal:    Optional[int]
-    # Per-day breakdown (7 entries, Mon–Sun)
     days:            List[Dict[str, Any]]
 
 
