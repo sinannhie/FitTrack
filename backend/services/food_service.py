@@ -17,26 +17,46 @@ from utils.logger import logger
 
 def log_food(db: Session, user_id: int, payload: FoodLogCreate) -> FoodLog:
     get_user_or_404(db, user_id)
-    macros = compute_macros(payload.food_name, payload.quantity_g)
-    if macros is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "message": f"{payload.food_name} not found",
-                "available_foods": available_food_names(),
-            },
+
+    # ✅ FIX: Handle custom foods separately — previously compute_macros() was
+    # called for ALL entries, then raised 422 when the name wasn't in the DB.
+    # Custom entries carry their own macros directly from the frontend.
+    if payload.is_custom:
+        entry = FoodLog(
+            user_id=user_id,
+            date=payload.date,
+            food_name=payload.food_name.strip(),
+            quantity_g=payload.quantity_g,
+            is_custom=True,
+            calories=payload.calories or 0,
+            protein_g=payload.protein or 0,
+            carbs_g=payload.carbs or 0,
+            fat_g=payload.fat or 0,
         )
-    entry = FoodLog(
-        user_id=user_id,
-        date=payload.date,
-        food_name=payload.food_name.lower().strip(),
-        quantity_g=payload.quantity_g,
-        **macros,
-    )
+    else:
+        # Standard food — look up macros from the food database
+        macros = compute_macros(payload.food_name, payload.quantity_g)
+        if macros is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": f"{payload.food_name} not found",
+                    "available_foods": available_food_names(),
+                },
+            )
+        entry = FoodLog(
+            user_id=user_id,
+            date=payload.date,
+            food_name=payload.food_name.lower().strip(),
+            quantity_g=payload.quantity_g,
+            is_custom=False,
+            **macros,
+        )
+
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    logger.info(f"Food logged user={user_id} food={entry.food_name}")
+    logger.info(f"Food logged user={user_id} food={entry.food_name} custom={entry.is_custom}")
     return entry
 
 
@@ -82,15 +102,11 @@ def get_daily_nutrition_summary(
 def get_weekly_nutrition_summary(
     db: Session, user_id: int, week_start: date
 ) -> WeeklyNutritionSummary:
-    """
-    Returns calorie + protein totals for the 7-day window starting on week_start (Monday),
-    plus the previous week's totals for trend comparison (↑↓).
-    """
     user = get_user_or_404(db, user_id)
 
-    week_end      = week_start + timedelta(days=6)
-    prev_start    = week_start - timedelta(days=7)
-    prev_end      = week_start - timedelta(days=1)
+    week_end   = week_start + timedelta(days=6)
+    prev_start = week_start - timedelta(days=7)
+    prev_end   = week_start - timedelta(days=1)
 
     def _query_range(start: date, end: date):
         return (
@@ -107,7 +123,6 @@ def get_weekly_nutrition_summary(
             .one()
         )
 
-    # ── Per-day breakdown (Mon–Sun) ──────────────────────────────
     days = []
     for i in range(7):
         d = week_start + timedelta(days=i)
@@ -121,7 +136,7 @@ def get_weekly_nutrition_summary(
         )
         days.append({
             "date":     d.isoformat(),
-            "label":    d.strftime("%a"),          # Mon, Tue …
+            "label":    d.strftime("%a"),
             "calories": round(row.cal,  1),
             "protein":  round(row.prot, 1),
         })
@@ -129,7 +144,6 @@ def get_weekly_nutrition_summary(
     this_week = _query_range(week_start, week_end)
     prev_week = _query_range(prev_start, prev_end)
 
-    # Trend: positive = up, negative = down, None = no previous data
     def _trend(this, prev):
         if prev == 0:
             return None
@@ -139,19 +153,14 @@ def get_weekly_nutrition_summary(
         user_id=user_id,
         week_start=week_start,
         week_end=week_end,
-        # This week totals
         total_calories=round(this_week.cal,  1),
         total_protein_g=round(this_week.prot, 1),
-        # Previous week totals (for ↑↓ badge)
         prev_calories=round(prev_week.cal,  1),
         prev_protein_g=round(prev_week.prot, 1),
-        # Deltas
         calorie_trend=_trend(this_week.cal,  prev_week.cal),
         protein_trend=_trend(this_week.prot, prev_week.prot),
-        # Goals
         calorie_goal=user.calorie_goal,
         protein_goal=user.protein_goal,
-        # Per-day breakdown
         days=days,
     )
 
