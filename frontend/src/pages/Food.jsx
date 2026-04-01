@@ -1,5 +1,3 @@
-// FIXED VERSION — matches backend logic 100%
-
 import { useState, useEffect, useCallback } from 'react'
 import { useUser } from '../hooks/useUser'
 import { logFood, getFoodLogs, getNutritionSummary, getFoods, deleteFoodLog } from '../services/api'
@@ -13,12 +11,10 @@ import {
   MacroBar,
   EmptyState,
   SectionHeader,
-  Badge,
 } from '../components/UI'
 
 const today = () => new Date().toISOString().split('T')[0]
 
-// 🔥 UNIT LOGIC (FINAL)
 const getFoodUnit = (foodName) => {
   if (!foodName) return '100g'
   const n = foodName.toLowerCase()
@@ -28,23 +24,15 @@ const getFoodUnit = (foodName) => {
   return '100g'
 }
 
-// 🔥 PREVIEW CALCULATION (MATCH BACKEND)
 const calculatePreview = (food, quantity) => {
   if (!food || quantity <= 0) return null
 
   const name = food.name.toLowerCase()
-
   let factor = 1
 
-  if (name === 'egg') {
-    factor = quantity
-  } else if (name.includes('whey')) {
-    factor = quantity
-  } else if (name.includes('milk')) {
-    factor = quantity / 100
-  } else {
-    factor = quantity / 100
-  }
+  if (name === 'egg') factor = quantity
+  else if (name.includes('whey')) factor = quantity
+  else factor = quantity / 100
 
   return {
     calories: (food.calories_per_100g * factor).toFixed(1),
@@ -71,7 +59,6 @@ export default function FoodPage() {
   const [form, setForm] = useState({ food_name: '', quantity_g: '' })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  // Load foods
   useEffect(() => {
     getFoods().then((r) => setFoods(r.data))
   }, [])
@@ -131,9 +118,7 @@ export default function FoodPage() {
     <div className="space-y-8">
 
       {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-bold">Nutrition</h1>
-      </div>
+      <h1 className="text-4xl font-bold">Nutrition</h1>
 
       <ErrorBanner message={error} />
 
@@ -147,15 +132,21 @@ export default function FoodPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-5 gap-4">
+      <div className="grid lg:grid-cols-5 gap-6">
 
         {/* FORM */}
-        <Card className="lg:col-span-2">
-          <h2>Add Food</h2>
+        <Card className="lg:col-span-2 space-y-4">
+          <h2 className="text-lg font-semibold">Add Food</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            {/* FIXED DATE INPUT */}
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded"
+            />
 
             <Select value={form.food_name} onChange={set('food_name')}>
               <option value="">Select food</option>
@@ -173,13 +164,13 @@ export default function FoodPage() {
               onChange={set('quantity_g')}
             />
 
-            {/* 🔥 LIVE PREVIEW FIXED */}
+            {/* PREVIEW */}
             {preview && (
-              <div className="bg-gray-900 p-3 rounded">
-                <p>Calories: {preview.calories} kcal</p>
-                <p>Protein: {preview.protein} g</p>
-                <p>Carbs: {preview.carbs} g</p>
-                <p>Fat: {preview.fat} g</p>
+              <div className="bg-gray-900 p-3 rounded-lg text-sm space-y-1">
+                <p>🔥 {preview.calories} kcal</p>
+                <p>💪 {preview.protein} g protein</p>
+                <p>🍚 {preview.carbs} g carbs</p>
+                <p>🥑 {preview.fat} g fat</p>
               </div>
             )}
 
@@ -190,7 +181,8 @@ export default function FoodPage() {
         </Card>
 
         {/* LOGS */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-4">
+
           <Card>
             <SectionHeader title={`Entries — ${date}`} />
 
@@ -199,37 +191,50 @@ export default function FoodPage() {
             ) : logs.length === 0 ? (
               <EmptyState title="No entries" />
             ) : (
-              logs.map((log) => (
-                <div key={log.id} className="flex justify-between p-2 border-b">
-                  <div>
-                    <p>{log.food_name}</p>
-                    <p className="text-xs text-gray-400">
-                      {log.quantity_g}
-                    </p>
-                  </div>
+              <div className="space-y-3 max-h-[320px] overflow-y-auto">
+                {logs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex justify-between items-center bg-gray-900 p-3 rounded-lg"
+                  >
+                    {/* LEFT */}
+                    <div>
+                      <p className="font-medium">{log.food_name}</p>
+                      <p className="text-xs text-gray-400">
+                        {log.quantity_g}
+                      </p>
+                    </div>
 
-                  <div>
-                    <p>{log.calories} kcal</p>
-                    <p>{log.protein_g}g</p>
-                  </div>
+                    {/* RIGHT */}
+                    <div className="text-right text-sm">
+                      <p>{log.calories} kcal</p>
+                      <p className="text-gray-400">{log.protein_g}g protein</p>
+                    </div>
 
-                  <button onClick={() => handleDelete(log.id)}>X</button>
-                </div>
-              ))
+                    {/* DELETE */}
+                    <button
+                      onClick={() => handleDelete(log.id)}
+                      className="text-red-400 hover:text-red-600 ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </Card>
 
           {/* MACROS */}
           {summary && (
-            <Card>
+            <Card className="space-y-2">
               <MacroBar label="Calories" current={summary.total_calories} goal={summary.calorie_goal} />
               <MacroBar label="Protein" current={summary.total_protein_g} goal={summary.protein_goal} />
               <MacroBar label="Carbs" current={summary.total_carbs_g} />
               <MacroBar label="Fat" current={summary.total_fat_g} />
             </Card>
           )}
-        </div>
 
+        </div>
       </div>
     </div>
   )
