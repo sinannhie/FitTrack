@@ -4,7 +4,6 @@ import { logFood, getFoodLogs, getNutritionSummary, getFoods, deleteFoodLog } fr
 import {
   Card,
   Input,
-  Select,
   Button,
   StatCard,
   ErrorBanner,
@@ -25,7 +24,7 @@ const getFoodUnit = (foodName) => {
 }
 
 const calculatePreview = (food, quantity) => {
-  if (!food || quantity <= 0) return null
+  if (!food || !quantity || isNaN(quantity) || quantity <= 0) return null
 
   const name = food.name.toLowerCase()
   let factor = 1
@@ -34,11 +33,18 @@ const calculatePreview = (food, quantity) => {
   else if (name.includes('whey')) factor = quantity
   else factor = quantity / 100
 
+  const calories = food.calories_per_100g * factor
+  const protein = food.protein_per_100g * factor
+  const carbs = food.carbs_per_100g * factor
+  const fat = food.fat_per_100g * factor
+
+  if ([calories, protein, carbs, fat].some(v => isNaN(v))) return null
+
   return {
-    calories: (food.calories_per_100g * factor).toFixed(1),
-    protein: (food.protein_per_100g * factor).toFixed(1),
-    carbs: (food.carbs_per_100g * factor).toFixed(1),
-    fat: (food.fat_per_100g * factor).toFixed(1),
+    calories: calories.toFixed(1),
+    protein: protein.toFixed(1),
+    carbs: carbs.toFixed(1),
+    fat: fat.toFixed(1),
   }
 }
 
@@ -59,7 +65,10 @@ export default function FoodPage() {
   const [form, setForm] = useState({ food_name: '', quantity_g: '' })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  // 🔥 CUSTOM FOOD STATE
+  const [search, setSearch] = useState('')
+
+  const [recentFoods, setRecentFoods] = useState([])
+
   const [customMode, setCustomMode] = useState(false)
   const [customFood, setCustomFood] = useState({
     name: '',
@@ -93,10 +102,17 @@ export default function FoodPage() {
 
   useEffect(() => { loadLogs() }, [loadLogs])
 
+  // 🔥 SAVE RECENT FOODS
+  const addRecentFood = (foodName) => {
+    setRecentFoods((prev) => {
+      const updated = [foodName, ...prev.filter(f => f !== foodName)]
+      return updated.slice(0, 5)
+    })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // 🔥 CUSTOM FOOD FLOW
     if (customMode) {
       if (!customFood.name) return setFormError('Enter food name')
 
@@ -106,11 +122,13 @@ export default function FoodPage() {
           food_name: customFood.name,
           quantity_g: 1,
           is_custom: true,
-          calories: parseFloat(customFood.calories),
-          protein: parseFloat(customFood.protein),
-          carbs: parseFloat(customFood.carbs),
-          fat: parseFloat(customFood.fat),
+          calories: parseFloat(customFood.calories) || 0,
+          protein: parseFloat(customFood.protein) || 0,
+          carbs: parseFloat(customFood.carbs) || 0,
+          fat: parseFloat(customFood.fat) || 0,
         })
+
+        addRecentFood(customFood.name)
 
         setCustomFood({
           name: '',
@@ -128,7 +146,6 @@ export default function FoodPage() {
       }
     }
 
-    // 🔥 NORMAL FLOW
     if (!form.food_name) return setFormError('Select a food')
     if (!form.quantity_g || form.quantity_g <= 0)
       return setFormError('Enter valid quantity')
@@ -143,6 +160,8 @@ export default function FoodPage() {
         quantity_g: parseFloat(form.quantity_g),
       })
 
+      addRecentFood(form.food_name)
+
       setForm({ food_name: '', quantity_g: '' })
       loadLogs()
     } catch (err) {
@@ -152,6 +171,17 @@ export default function FoodPage() {
     }
   }
 
+  const quickAdd = async (foodName) => {
+    await logFood(user.id, {
+      date,
+      food_name: foodName,
+      quantity_g: 100,
+    })
+
+    addRecentFood(foodName)
+    loadLogs()
+  }
+
   const handleDelete = async (id) => {
     await deleteFoodLog(user.id, id)
     loadLogs()
@@ -159,6 +189,10 @@ export default function FoodPage() {
 
   const selectedFood = foods.find((f) => f.name === form.food_name)
   const preview = calculatePreview(selectedFood, parseFloat(form.quantity_g))
+
+  const filteredFoods = foods.filter(f =>
+    f.name.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div className="space-y-8">
@@ -178,7 +212,6 @@ export default function FoodPage() {
 
       <div className="grid lg:grid-cols-5 gap-6">
 
-        {/* FORM */}
         <Card className="lg:col-span-2 space-y-4">
           <h2 className="text-lg font-semibold">Add Food</h2>
 
@@ -191,32 +224,65 @@ export default function FoodPage() {
               className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded"
             />
 
-            {/* 🔥 UPDATED SELECT */}
-            <Select
-              value={form.food_name}
-              onChange={(e) => {
-                const value = e.target.value
+            {/* ⭐ RECENT FOODS */}
+            {recentFoods.length > 0 && (
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Recent</p>
+                <div className="flex flex-wrap gap-2">
+                  {recentFoods.map((f, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => quickAdd(f)}
+                      className="bg-gray-800 px-2 py-1 rounded text-xs hover:bg-gray-700"
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                if (value === '__custom__') {
+            <Input
+              placeholder="Search food..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
+            <div className="max-h-40 overflow-y-auto bg-gray-900 rounded p-2 space-y-1">
+              <div
+                className="p-2 cursor-pointer hover:bg-gray-800 rounded"
+                onClick={() => {
                   setCustomMode(true)
                   setForm((f) => ({ ...f, food_name: '' }))
-                } else {
-                  setCustomMode(false)
-                  setForm((f) => ({ ...f, food_name: value }))
-                }
-              }}
-            >
-              <option value="">Select food</option>
-              <option value="__custom__">➕ Add Custom Food</option>
+                }}
+              >
+                ➕ Add Custom Food
+              </div>
 
-              {foods.map((f) => (
-                <option key={f.name} value={f.name}>
-                  {f.name}
-                </option>
+              {filteredFoods.map((f) => (
+                <div
+                  key={f.name}
+                  className="p-2 cursor-pointer hover:bg-gray-800 rounded flex justify-between"
+                >
+                  <span onClick={() => {
+                    setCustomMode(false)
+                    setForm((prev) => ({ ...prev, food_name: f.name }))
+                  }}>
+                    {f.name}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => quickAdd(f.name)}
+                    className="text-xs text-green-400"
+                  >
+                    + Quick
+                  </button>
+                </div>
               ))}
-            </Select>
+            </div>
 
-            {/* 🔥 CUSTOM UI */}
             {customMode && (
               <div className="bg-gray-900 p-3 rounded-lg space-y-2">
                 <Input placeholder="Food name" value={customFood.name} onChange={setCustom('name')} />
@@ -251,7 +317,6 @@ export default function FoodPage() {
           </form>
         </Card>
 
-        {/* LOGS */}
         <div className="lg:col-span-3 space-y-4">
 
           <Card>
