@@ -82,13 +82,9 @@ function CustomTooltip({ active, payload, label }) {
 
  // make sure this is your configured axios instance
 
-import api from './api'
+import { getWeeklyNutrition } from '../services/api'
 
-export const getWeeklyNutrition = (userId, weekStart) => {
-  return api.get(`/users/${userId}/nutrition/weekly`, {
-    params: { week_start: weekStart },
-  })
-}
+
 export default function Dashboard() {
   const { user } = useUser()
 
