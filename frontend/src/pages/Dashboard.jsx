@@ -136,32 +136,116 @@ export default function Dashboard() {
   const chartGoal = chartMode === 'calories' ? user?.calorie_goal : proteinGoal
 
   return (
-    <div className="space-y-8">
-      <ErrorBanner message={error} />
+  <div className="space-y-8">
+    <ErrorBanner message={error} />
 
-      <div>
-        <h1 className="text-4xl">Dashboard</h1>
+    {/* Header */}
+    <div>
+      <h1 className="text-4xl font-bold">Dashboard</h1>
+    </div>
+
+    {/* ── TOP 4 CARDS ── */}
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+
+      {/* Current Weight */}
+      <StatCard
+        label="Current Weight"
+        value={trend?.end_weight_kg?.toFixed(1) ?? '—'}
+        unit="kg"
+        sub={`Target: ${user?.target_weight ?? '—'} kg`}
+        accent="lime"
+      />
+
+      {/* Weight Trend */}
+      <StatCard
+        label="Weight Trend"
+        value={trend?.change_kg ?? '—'}
+        unit="kg"
+        sub="Last 30 days"
+        accent="ice"
+      />
+
+      {/* Weekly Calories */}
+      <StatCard
+        label="Weekly Calories"
+        value={weekly ? Math.round(weekly.total_calories) : '—'}
+        unit="kcal"
+        sub="This week"
+        accent="ember"
+      />
+
+      {/* Weekly Protein */}
+      <StatCard
+        label="Weekly Protein"
+        value={weekly ? Math.round(weekly.total_protein_g) : '—'}
+        unit="g"
+        sub="This week"
+        accent="ice"
+      />
+    </div>
+
+    {/* ── WEEKLY CHART ── */}
+    <Card>
+      <div className="flex justify-between items-center mb-4">
+        <SectionHeader title="Weekly Overview" />
+        <p className="text-sm text-gray-400">
+          {weekRangeLabel(currentMonday)}
+        </p>
       </div>
 
-      <Card>
-        <SectionHeader title="Weekly Overview" />
+      {/* Toggle */}
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => setChartMode('calories')}>
+          Calories
+        </button>
+        <button onClick={() => setChartMode('protein')}>
+          Protein
+        </button>
+      </div>
 
-        <button onClick={() => setChartMode('calories')}>Calories</button>
-        <button onClick={() => setChartMode('protein')}>Protein</button>
+      {/* Week Navigation */}
+      <div className="flex gap-3 mb-4">
+        <button onClick={() => setCurrentMonday(addDays(currentMonday, -7))}>
+          ‹
+        </button>
+        <button
+          onClick={() => setCurrentMonday(addDays(currentMonday, 7))}
+          disabled={isCurrentWeek}
+        >
+          ›
+        </button>
+      </div>
 
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={chartData}>
-            <XAxis dataKey="label" />
-            <YAxis />
-            <Tooltip content={<CustomTooltip />} />
-            {chartGoal && <ReferenceLine y={chartGoal} stroke={chartColor} />}
-            <Bar
-              dataKey={chartMode === 'calories' ? 'calories' : 'protein'}
-              fill={chartColor}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
-    </div>
-  )
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart data={weekly?.days || []}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="label" />
+          <YAxis />
+          <Tooltip />
+
+          <ReferenceLine
+            y={chartMode === 'calories' ? user?.calorie_goal : proteinGoal}
+            stroke="gray"
+            strokeDasharray="4 4"
+          />
+
+          <Bar
+            dataKey={chartMode === 'calories' ? 'calories' : 'protein'}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* Summary */}
+      {weekly && (
+        <div className="flex gap-6 mt-4">
+          <div>Week: {Math.round(weekly.total_calories)} kcal</div>
+          <div>Avg: {Math.round(weekly.total_calories / 7)} kcal</div>
+          <div>Protein: {Math.round(weekly.total_protein_g)} g</div>
+        </div>
+      )}
+    </Card>
+  </div>
+)
+
 }
