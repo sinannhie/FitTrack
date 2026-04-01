@@ -6,7 +6,7 @@ Pydantic v2 request/response contracts.
 
 from __future__ import annotations
 import datetime
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -47,7 +47,6 @@ class UserResponse(UserCreate):
 class WeightEntryCreate(BaseModel):
     date: datetime.date = Field(..., description="Measurement date (YYYY-MM-DD)")
     weight_kg: float = Field(..., gt=0, lt=500)
-    # notes removed — not in DB schema
 
 
 class WeightEntryResponse(BaseModel):
@@ -118,6 +117,37 @@ class DailyNutritionSummary(BaseModel):
     calorie_remaining: Optional[float]
     protein_remaining: Optional[float]
     food_entries: int
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WEEKLY NUTRITION SUMMARY  ← NEW
+# ══════════════════════════════════════════════════════════════════════════════
+
+class WeeklyDayEntry(BaseModel):
+    date:     str
+    label:    str        # "Mon", "Tue", …
+    calories: float
+    protein:  float
+
+
+class WeeklyNutritionSummary(BaseModel):
+    user_id:         int
+    week_start:      datetime.date
+    week_end:        datetime.date
+    # This week totals
+    total_calories:  float
+    total_protein_g: float
+    # Previous week totals (for ↑↓ trend)
+    prev_calories:   float
+    prev_protein_g:  float
+    # Deltas — None means no previous data
+    calorie_trend:   Optional[float]
+    protein_trend:   Optional[float]
+    # Goals
+    calorie_goal:    Optional[int]
+    protein_goal:    Optional[int]
+    # Per-day breakdown (7 entries, Mon–Sun)
+    days:            List[Dict[str, Any]]
 
 
 # ══════════════════════════════════════════════════════════════════════════════

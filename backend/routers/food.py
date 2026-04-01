@@ -9,10 +9,10 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-# ✅ FIXED IMPORTS (relative)
 from database import get_db
 from schemas.schemas import (
-    FoodDBItem, FoodLogCreate, FoodLogResponse, DailyNutritionSummary,
+    FoodDBItem, FoodLogCreate, FoodLogResponse,
+    DailyNutritionSummary, WeeklyNutritionSummary,
 )
 from services import food_service
 from utils.food_database import list_all_foods
@@ -59,6 +59,23 @@ def daily_nutrition_summary(
 ):
     return food_service.get_daily_nutrition_summary(db, user_id, summary_date)
 
+
+# ── Weekly nutrition summary ─────────────────────────────────────
+
+@router.get(
+    "/users/{user_id}/nutrition/weekly",
+    response_model=WeeklyNutritionSummary,
+    summary="Weekly calorie + protein summary with per-day breakdown and trend vs last week",
+)
+def weekly_nutrition_summary(
+    user_id: int,
+    week_start: date,
+    db: Session = Depends(get_db),
+):
+    return food_service.get_weekly_nutrition_summary(db, user_id, week_start)
+
+
+# ── Delete food log ──────────────────────────────────────────────
 
 @router.delete(
     "/users/{user_id}/food/{log_id}",

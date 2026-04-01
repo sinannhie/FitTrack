@@ -3,7 +3,6 @@ import { useUser } from '../hooks/useUser'
 import {
   getWeightTrend,
   getNutritionSummary,
-  getWeeklySummary,
   getWeightHistory,
 } from '../services/api'
 import {
@@ -23,52 +22,50 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts'
 
 // ── Date helpers ─────────────────────────────────────────────────
 
-const today = () => new Date().toISOString().split('T')[0]
+const todayStr = () => new Date().toISOString().split('T')[0]
 
-const fmt = (d) => {
-  const dt = new Date(d + 'T00:00:00')
-  return dt.toLocaleDateString('en', { month: 'short', day: 'numeric' })
-}
-
-// Get Monday of the week containing `date`
-const getMondayOf = (date) => {
-  const d = new Date(date + 'T00:00:00')
-  const day = d.getDay() // 0=Sun,1=Mon,...
+const getMondayOf = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00')
+  const day = d.getDay()
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
   return d.toISOString().split('T')[0]
 }
 
-// Add N days to a date string
 const addDays = (dateStr, n) => {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + n)
   return d.toISOString().split('T')[0]
 }
 
-// Format week range label e.g. "30 Mar – 5 Apr"
-const weekLabel = (monday) => {
+const weekRangeLabel = (monday) => {
   const sunday = addDays(monday, 6)
-  const fmtShort = (ds) => {
+  const fmt = (ds) => {
     const d = new Date(ds + 'T00:00:00')
     return d.toLocaleDateString('en', { day: 'numeric', month: 'short' })
   }
-  return `${fmtShort(monday)} – ${fmtShort(sunday)}`
+  return `${fmt(monday)} – ${fmt(sunday)}`
 }
 
-// Build 7-day skeleton (Mon–Sun) for a given Monday
-const buildWeekDays = (monday) =>
-  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, i) => ({
-    label,
-    date: addDays(monday, i),
-    calories: 0,
-  }))
+// ── Trend badge ───────────────────────────────────────────────────
+function TrendArrow({ delta, unit = '' }) {
+  if (delta === null || delta === undefined) return null
+  const up    = delta > 0
+  const zero  = delta === 0
+  if (zero) return <span className="text-dim text-xs font-mono">→ same</span>
+  return (
+    <span className={`text-xs font-mono flex items-center gap-0.5 ${up ? 'text-ember' : 'text-ice'}`}>
+      {up ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}{unit} vs last week
+    </span>
+  )
+}
 
-// ── Tooltip ──────────────────────────────────────────────────────
+// ── Tooltip ───────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -83,6 +80,14 @@ function CustomTooltip({ active, payload, label }) {
   )
 }
 
+// ── API call (add this to services/api.js too) ────────────────────
+const getWeeklyNutrition = async (userId, weekStart) => {
+  const { default: axios } = await import('axios')
+  return axios.get(`/api/users/${userId}/nutrition/weekly`, {
+    params: { week_start: weekStart },
+  })
+}
+
 export default function Dashboard() {
   const { user } = useUser()
 
@@ -92,61 +97,55 @@ export default function Dashboard() {
     ? Math.max(0, Math.round((user.calorie_goal - proteinGoal * 4 - fatGoal * 9) / 4))
     : 0
 
-  // ── Week navigator state ─────────────────────────────────────
-  const [currentMonday, setCurrentMonday] = useState(() => getMondayOf(today()))
-  const thisMonday = getMondayOf(today())
+  // Week navigator
+  const [currentMonday, setCurrentMonday] = useState(() => getMondayOf(todayStr()))
+  const thisMonday    = getMondayOf(todayStr())
   const isCurrentWeek = currentMonday === thisMonday
 
-  const [trend, setTrend]                 = useState(null)
-  const [nutrition, setNutrition]         = useState(null)
-  const [weekly, setWeekly]               = useState(null)
-  const [weekDayData, setWeekDayData]     = useState([])
-  const [loading, setLoading]             = useState(true)
-  const [weekLoading, setWeekLoading]     = useState(false)
-  const [error, setError]                 = useState('')
+  const [trend,     setTrend]     = useState(null)
+  const [nutrition, setNutrition] = useState(null)
+  const [weekly,    setWeekly]    = useState(null)
+  const [loading,   setLoading]   = useState(true)
+  const [weekLoading, setWeekLoading] = useState(false)
+  const [error,     setError]     = useState('')
 
-  // Load main dashboard data
+  // Main data
   useEffect(() => {
     if (!user) return
     Promise.all([
       getWeightTrend(user.id, 30),
-      getNutritionSummary(user.id, today()),
-      getWeeklySummary(user.id, 6),
+      getNutritionSummary(user.id, todayStr()),
     ])
-      .then(([t, n, w]) => {
+      .then(([t, n]) => {
         setTrend(t.data)
         setNutrition(n.data)
-        setWeekly(w.data)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [user])
 
-  // Load per-day calorie data for selected week
+  // Weekly data — refetches when week changes
   useEffect(() => {
     if (!user) return
     setWeekLoading(true)
-    const days = buildWeekDays(currentMonday)
-
-    // Fetch nutrition summary for each day of the week
-    Promise.all(
-      days.map((d) =>
-        getNutritionSummary(user.id, d.date)
-          .then((r) => ({ ...d, calories: Math.round(r.data?.total_calories ?? 0) }))
-          .catch(() => d)
-      )
-    )
-      .then(setWeekDayData)
+    getWeeklyNutrition(user.id, currentMonday)
+      .then((r) => setWeekly(r.data))
+      .catch(() => setWeekly(null))
       .finally(() => setWeekLoading(false))
   }, [user, currentMonday])
 
   if (loading) return <PageLoader />
 
   const currentWeight = trend?.end_weight_kg
-
-  const caloriesPct = nutrition?.calorie_goal
+  const caloriesPct   = nutrition?.calorie_goal
     ? Math.round((nutrition.total_calories / nutrition.calorie_goal) * 100)
     : null
+
+  // Chart mode toggle
+  const [chartMode, setChartMode] = useState('calories') // 'calories' | 'protein'
+  const chartData  = weekly?.days ?? []
+  const chartColor = chartMode === 'calories' ? '#FF4D1C' : '#38BDF8'
+  const chartGoal  = chartMode === 'calories' ? user?.calorie_goal : proteinGoal
 
   return (
     <div className="space-y-8">
@@ -162,8 +161,10 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {/* ── 4 Stat Cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+
+        {/* 1 — Current Weight */}
         <StatCard
           label="Current Weight"
           value={currentWeight?.toFixed(1) ?? '—'}
@@ -172,27 +173,13 @@ export default function Dashboard() {
           accent="lime"
           icon="◈"
         />
-        <StatCard
-          label="Calories Today"
-          value={Math.round(nutrition?.total_calories ?? 0)}
-          unit="kcal"
-          sub={caloriesPct != null ? `${caloriesPct}% of goal` : 'No goal set'}
-          accent="ember"
-          icon="◎"
-        />
-        <StatCard
-          label="Protein Today"
-          value={Math.round(nutrition?.total_protein_g ?? 0)}
-          unit="g"
-          sub={proteinGoal > 0 ? `Goal: ${proteinGoal}g` : 'No goal set'}
-          accent="ice"
-          icon="◉"
-        />
+
+        {/* 2 — Weight Trend */}
         <StatCard
           label="Weight Trend"
           value={
             trend?.change_kg != null
-              ? trend.change_kg > 0 ? `+${trend.change_kg}` : trend.change_kg
+              ? trend.change_kg > 0 ? `+${trend.change_kg}` : `${trend.change_kg}`
               : '—'
           }
           unit="kg"
@@ -204,65 +191,105 @@ export default function Dashboard() {
           }
           icon="◐"
         />
+
+        {/* 3 — Weekly Calories */}
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <p className="text-dim text-xs font-mono uppercase tracking-widest">Weekly Calories</p>
+            <span className="text-ember text-lg">◎</span>
+          </div>
+          <p className="font-display text-3xl text-ember leading-tight">
+            {weekly ? Math.round(weekly.total_calories).toLocaleString() : '—'}
+            <span className="text-sm text-dim font-body ml-1">kcal</span>
+          </p>
+          <div className="mt-1">
+            <TrendArrow delta={weekly?.calorie_trend} unit=" kcal" />
+          </div>
+          {user?.calorie_goal && weekly && (
+            <p className="text-[10px] text-dim font-mono mt-0.5">
+              Goal: {(user.calorie_goal * 7).toLocaleString()} kcal/week
+            </p>
+          )}
+        </div>
+
+        {/* 4 — Weekly Protein */}
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <p className="text-dim text-xs font-mono uppercase tracking-widest">Weekly Protein</p>
+            <span className="text-ice text-lg">◉</span>
+          </div>
+          <p className="font-display text-3xl text-ice leading-tight">
+            {weekly ? Math.round(weekly.total_protein_g) : '—'}
+            <span className="text-sm text-dim font-body ml-1">g</span>
+          </p>
+          <div className="mt-1">
+            <TrendArrow delta={weekly?.protein_trend} unit="g" />
+          </div>
+          {proteinGoal > 0 && weekly && (
+            <p className="text-[10px] text-dim font-mono mt-0.5">
+              Goal: {proteinGoal * 7}g/week
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Today's Macros — no TrendBadge, no "No data" */}
+      {/* Today's Macros */}
       {nutrition && (
         <Card>
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-2xl tracking-wide">Today's Macros</h2>
           </div>
           <div className="grid sm:grid-cols-2 gap-5">
-            <MacroBar
-              label="Calories"
-              current={nutrition.total_calories}
-              goal={nutrition.calorie_goal}
-              color="ember"
-            />
-            <MacroBar
-              label="Protein"
-              current={nutrition.total_protein_g}
-              goal={proteinGoal}
-              color="ice"
-            />
-            <MacroBar
-              label="Carbs"
-              current={nutrition.total_carbs_g}
-              goal={carbsGoal}
-              color="lime"
-            />
-            <MacroBar
-              label="Fat"
-              current={nutrition.total_fat_g}
-              goal={fatGoal}
-              color="dim"
-            />
+            <MacroBar label="Calories" current={nutrition.total_calories} goal={nutrition.calorie_goal} color="ember" />
+            <MacroBar label="Protein"  current={nutrition.total_protein_g} goal={proteinGoal} color="ice" />
+            <MacroBar label="Carbs"    current={nutrition.total_carbs_g}   goal={carbsGoal}   color="lime" />
+            <MacroBar label="Fat"      current={nutrition.total_fat_g}     goal={fatGoal}     color="dim" />
           </div>
         </Card>
       )}
 
-      {/* Weekly Calories — Mon to Sun navigator */}
+      {/* Weekly Chart — Mon to Sun with toggle */}
       <Card>
-        {/* Week header with prev/next */}
-        <div className="flex items-center justify-between mb-5">
-          <SectionHeader title="Weekly Calories" />
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <SectionHeader title="Weekly Overview" />
+            <p className="text-dim text-xs font-mono -mt-1">{weekRangeLabel(currentMonday)}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Calories / Protein toggle */}
+            <div className="flex rounded-lg border border-muted overflow-hidden text-xs font-mono">
+              <button
+                onClick={() => setChartMode('calories')}
+                className={`px-3 py-1.5 transition-colors ${
+                  chartMode === 'calories' ? 'bg-ember/20 text-ember' : 'text-dim hover:text-text'
+                }`}
+              >
+                Calories
+              </button>
+              <button
+                onClick={() => setChartMode('protein')}
+                className={`px-3 py-1.5 transition-colors ${
+                  chartMode === 'protein' ? 'bg-ice/20 text-ice' : 'text-dim hover:text-text'
+                }`}
+              >
+                Protein
+              </button>
+            </div>
+
+            {/* Week prev/next */}
             <button
               onClick={() => setCurrentMonday(addDays(currentMonday, -7))}
               className="w-7 h-7 rounded-lg border border-muted text-dim hover:border-lime/50
-                hover:text-lime transition-all flex items-center justify-center text-sm"
+                hover:text-lime transition-all flex items-center justify-center"
             >
               ‹
             </button>
-            <span className="text-xs font-mono text-dim min-w-[120px] text-center">
-              {weekLabel(currentMonday)}
-            </span>
             <button
               onClick={() => setCurrentMonday(addDays(currentMonday, 7))}
               disabled={isCurrentWeek}
               className={`w-7 h-7 rounded-lg border border-muted flex items-center justify-center
-                text-sm transition-all
-                ${isCurrentWeek
+                transition-all ${isCurrentWeek
                   ? 'opacity-30 cursor-not-allowed text-dim'
                   : 'text-dim hover:border-lime/50 hover:text-lime'
                 }`}
@@ -273,26 +300,62 @@ export default function Dashboard() {
         </div>
 
         {weekLoading ? (
-          <div className="h-[200px] flex items-center justify-center">
+          <div className="h-[220px] flex items-center justify-center">
             <div className="w-5 h-5 border-2 border-border border-t-lime rounded-full animate-spin" />
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weekDayData} barSize={28}>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barSize={32}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="calories" fill="#FF4D1C" radius={[4, 4, 0, 0]} />
+              {/* Daily goal reference line */}
+              {chartGoal && (
+                <ReferenceLine
+                  y={chartGoal}
+                  stroke={chartColor}
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.5}
+                  label={{ value: 'goal', fill: chartColor, fontSize: 9, position: 'insideTopRight' }}
+                />
+              )}
+              <Bar
+                dataKey={chartMode === 'calories' ? 'calories' : 'protein'}
+                fill={chartColor}
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         )}
 
-        {/* Calorie goal reference line label */}
-        {user?.calorie_goal && (
-          <p className="text-[10px] text-dim font-mono mt-2 text-right">
-            Daily goal: {user.calorie_goal} kcal
-          </p>
+        {/* Summary row below chart */}
+        {weekly && (
+          <div className="flex gap-6 mt-3 pt-3 border-t border-border">
+            <div>
+              <p className="text-[10px] text-dim font-mono uppercase tracking-widest">Week Total</p>
+              <p className="text-sm font-mono text-ember">
+                {Math.round(weekly.total_calories).toLocaleString()} kcal
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-dim font-mono uppercase tracking-widest">Avg / Day</p>
+              <p className="text-sm font-mono text-lime">
+                {Math.round(weekly.total_calories / 7).toLocaleString()} kcal
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-dim font-mono uppercase tracking-widest">Total Protein</p>
+              <p className="text-sm font-mono text-ice">
+                {Math.round(weekly.total_protein_g)}g
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-dim font-mono uppercase tracking-widest">vs Last Week</p>
+              <TrendArrow delta={chartMode === 'calories' ? weekly.calorie_trend : weekly.protein_trend}
+                unit={chartMode === 'calories' ? ' kcal' : 'g'} />
+            </div>
+          </div>
         )}
       </Card>
     </div>
