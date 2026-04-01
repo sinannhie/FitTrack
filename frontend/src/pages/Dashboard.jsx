@@ -80,14 +80,15 @@ function CustomTooltip({ active, payload, label }) {
   )
 }
 
-// ── API call (add this to services/api.js too) ────────────────────
-const getWeeklyNutrition = async (userId, weekStart) => {
-  const { default: axios } = await import('axios')
-  return axios.get(`/api/users/${userId}/nutrition/weekly`, {
+ // make sure this is your configured axios instance
+
+import api from './api'
+
+export const getWeeklyNutrition = (userId, weekStart) => {
+  return api.get(`/users/${userId}/nutrition/weekly`, {
     params: { week_start: weekStart },
   })
 }
-
 export default function Dashboard() {
   const { user } = useUser()
 
