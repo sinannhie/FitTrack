@@ -66,7 +66,6 @@ export default function FoodPage() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const [search, setSearch] = useState('')
-
   const [recentFoods, setRecentFoods] = useState([])
 
   const [customMode, setCustomMode] = useState(false)
@@ -102,7 +101,6 @@ export default function FoodPage() {
 
   useEffect(() => { loadLogs() }, [loadLogs])
 
-  // 🔥 SAVE RECENT FOODS
   const addRecentFood = (foodName) => {
     setRecentFoods((prev) => {
       const updated = [foodName, ...prev.filter(f => f !== foodName)]
@@ -171,17 +169,6 @@ export default function FoodPage() {
     }
   }
 
-  const quickAdd = async (foodName) => {
-    await logFood(user.id, {
-      date,
-      food_name: foodName,
-      quantity_g: 100,
-    })
-
-    addRecentFood(foodName)
-    loadLogs()
-  }
-
   const handleDelete = async (id) => {
     await deleteFoodLog(user.id, id)
     loadLogs()
@@ -224,7 +211,7 @@ export default function FoodPage() {
               className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded"
             />
 
-            {/* ⭐ RECENT FOODS */}
+            {/* RECENT FOODS (SELECT ONLY) */}
             {recentFoods.length > 0 && (
               <div>
                 <p className="text-sm text-gray-400 mb-1">Recent</p>
@@ -233,7 +220,10 @@ export default function FoodPage() {
                     <button
                       key={i}
                       type="button"
-                      onClick={() => quickAdd(f)}
+                      onClick={() => {
+                        setCustomMode(false)
+                        setForm((prev) => ({ ...prev, food_name: f }))
+                      }}
                       className="bg-gray-800 px-2 py-1 rounded text-xs hover:bg-gray-700"
                     >
                       {f}
@@ -263,22 +253,13 @@ export default function FoodPage() {
               {filteredFoods.map((f) => (
                 <div
                   key={f.name}
-                  className="p-2 cursor-pointer hover:bg-gray-800 rounded flex justify-between"
-                >
-                  <span onClick={() => {
+                  className="p-2 cursor-pointer hover:bg-gray-800 rounded"
+                  onClick={() => {
                     setCustomMode(false)
                     setForm((prev) => ({ ...prev, food_name: f.name }))
-                  }}>
-                    {f.name}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => quickAdd(f.name)}
-                    className="text-xs text-green-400"
-                  >
-                    + Quick
-                  </button>
+                  }}
+                >
+                  {f.name}
                 </div>
               ))}
             </div>
