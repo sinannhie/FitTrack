@@ -59,6 +59,19 @@ export default function FoodPage() {
   const [form, setForm] = useState({ food_name: '', quantity_g: '' })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // 🔥 CUSTOM FOOD STATE
+  const [customMode, setCustomMode] = useState(false)
+  const [customFood, setCustomFood] = useState({
+    name: '',
+    calories: '',
+    protein: '',
+    carbs: '',
+    fat: ''
+  })
+
+  const setCustom = (k) => (e) =>
+    setCustomFood((f) => ({ ...f, [k]: e.target.value }))
+
   useEffect(() => {
     getFoods().then((r) => setFoods(r.data))
   }, [])
@@ -83,6 +96,39 @@ export default function FoodPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
+    // 🔥 CUSTOM FOOD FLOW
+    if (customMode) {
+      if (!customFood.name) return setFormError('Enter food name')
+
+      try {
+        await logFood(user.id, {
+          date,
+          food_name: customFood.name,
+          quantity_g: 1,
+          is_custom: true,
+          calories: parseFloat(customFood.calories),
+          protein: parseFloat(customFood.protein),
+          carbs: parseFloat(customFood.carbs),
+          fat: parseFloat(customFood.fat),
+        })
+
+        setCustomFood({
+          name: '',
+          calories: '',
+          protein: '',
+          carbs: '',
+          fat: ''
+        })
+
+        loadLogs()
+        return
+      } catch (err) {
+        setFormError(err.message)
+        return
+      }
+    }
+
+    // 🔥 NORMAL FLOW
     if (!form.food_name) return setFormError('Select a food')
     if (!form.quantity_g || form.quantity_g <= 0)
       return setFormError('Enter valid quantity')
@@ -117,12 +163,10 @@ export default function FoodPage() {
   return (
     <div className="space-y-8">
 
-      {/* HEADER */}
       <h1 className="text-4xl font-bold">Nutrition</h1>
 
       <ErrorBanner message={error} />
 
-      {/* STATS */}
       {summary && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <StatCard label="Calories" value={Math.round(summary.total_calories)} unit="kcal" />
@@ -140,7 +184,6 @@ export default function FoodPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* FIXED DATE INPUT */}
             <input
               type="date"
               value={date}
@@ -148,8 +191,24 @@ export default function FoodPage() {
               className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded"
             />
 
-            <Select value={form.food_name} onChange={set('food_name')}>
+            {/* 🔥 UPDATED SELECT */}
+            <Select
+              value={form.food_name}
+              onChange={(e) => {
+                const value = e.target.value
+
+                if (value === '__custom__') {
+                  setCustomMode(true)
+                  setForm((f) => ({ ...f, food_name: '' }))
+                } else {
+                  setCustomMode(false)
+                  setForm((f) => ({ ...f, food_name: value }))
+                }
+              }}
+            >
               <option value="">Select food</option>
+              <option value="__custom__">➕ Add Custom Food</option>
+
               {foods.map((f) => (
                 <option key={f.name} value={f.name}>
                   {f.name}
@@ -157,15 +216,27 @@ export default function FoodPage() {
               ))}
             </Select>
 
-            <Input
-              label={`Quantity (${getFoodUnit(form.food_name)})`}
-              type="number"
-              value={form.quantity_g}
-              onChange={set('quantity_g')}
-            />
+            {/* 🔥 CUSTOM UI */}
+            {customMode && (
+              <div className="bg-gray-900 p-3 rounded-lg space-y-2">
+                <Input placeholder="Food name" value={customFood.name} onChange={setCustom('name')} />
+                <Input placeholder="Calories" type="number" onChange={setCustom('calories')} />
+                <Input placeholder="Protein (g)" type="number" onChange={setCustom('protein')} />
+                <Input placeholder="Carbs (g)" type="number" onChange={setCustom('carbs')} />
+                <Input placeholder="Fat (g)" type="number" onChange={setCustom('fat')} />
+              </div>
+            )}
 
-            {/* PREVIEW */}
-            {preview && (
+            {!customMode && (
+              <Input
+                label={`Quantity (${getFoodUnit(form.food_name)})`}
+                type="number"
+                value={form.quantity_g}
+                onChange={set('quantity_g')}
+              />
+            )}
+
+            {preview && !customMode && (
               <div className="bg-gray-900 p-3 rounded-lg text-sm space-y-1">
                 <p>🔥 {preview.calories} kcal</p>
                 <p>💪 {preview.protein} g protein</p>
@@ -197,7 +268,6 @@ export default function FoodPage() {
                     key={log.id}
                     className="flex justify-between items-center bg-gray-900 p-3 rounded-lg"
                   >
-                    {/* LEFT */}
                     <div>
                       <p className="font-medium">{log.food_name}</p>
                       <p className="text-xs text-gray-400">
@@ -205,13 +275,11 @@ export default function FoodPage() {
                       </p>
                     </div>
 
-                    {/* RIGHT */}
                     <div className="text-right text-sm">
                       <p>{log.calories} kcal</p>
                       <p className="text-gray-400">{log.protein_g}g protein</p>
                     </div>
 
-                    {/* DELETE */}
                     <button
                       onClick={() => handleDelete(log.id)}
                       className="text-red-400 hover:text-red-600 ml-2"
@@ -224,7 +292,6 @@ export default function FoodPage() {
             )}
           </Card>
 
-          {/* MACROS */}
           {summary && (
             <Card className="space-y-2">
               <MacroBar label="Calories" current={summary.total_calories} goal={summary.calorie_goal} />
