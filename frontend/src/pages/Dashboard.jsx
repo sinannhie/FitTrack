@@ -12,21 +12,20 @@ import {
   PageLoader,
   ErrorBanner,
   SectionHeader,
-  TrendBadge,
   MacroBar,
   EmptyState,
 } from '../components/UI'
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
 } from 'recharts'
+
+// ── Date helpers ─────────────────────────────────────────────────
 
 const today = () => new Date().toISOString().split('T')[0]
 
@@ -35,6 +34,41 @@ const fmt = (d) => {
   return dt.toLocaleDateString('en', { month: 'short', day: 'numeric' })
 }
 
+// Get Monday of the week containing `date`
+const getMondayOf = (date) => {
+  const d = new Date(date + 'T00:00:00')
+  const day = d.getDay() // 0=Sun,1=Mon,...
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().split('T')[0]
+}
+
+// Add N days to a date string
+const addDays = (dateStr, n) => {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
+}
+
+// Format week range label e.g. "30 Mar – 5 Apr"
+const weekLabel = (monday) => {
+  const sunday = addDays(monday, 6)
+  const fmtShort = (ds) => {
+    const d = new Date(ds + 'T00:00:00')
+    return d.toLocaleDateString('en', { day: 'numeric', month: 'short' })
+  }
+  return `${fmtShort(monday)} – ${fmtShort(sunday)}`
+}
+
+// Build 7-day skeleton (Mon–Sun) for a given Monday
+const buildWeekDays = (monday) =>
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, i) => ({
+    label,
+    date: addDays(monday, i),
+    calories: 0,
+  }))
+
+// ── Tooltip ──────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -42,7 +76,7 @@ function CustomTooltip({ active, payload, label }) {
       <p className="text-dim font-mono mb-1">{label}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color }} className="font-medium">
-          {p.name}: {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
+          {p.name}: {typeof p.value === 'number' ? p.value.toFixed(0) : p.value}
         </p>
       ))}
     </div>
@@ -52,53 +86,61 @@ function CustomTooltip({ active, payload, label }) {
 export default function Dashboard() {
   const { user } = useUser()
 
-  // Use protein_goal from API, fallback to weight-based calculation
   const proteinGoal = user?.protein_goal ?? Math.round((user?.weight ?? 0) * 2)
   const fatGoal     = Math.round((user?.weight ?? 0) * 0.7)
   const carbsGoal   = user?.calorie_goal
     ? Math.max(0, Math.round((user.calorie_goal - proteinGoal * 4 - fatGoal * 9) / 4))
     : 0
 
-  const [trend, setTrend]               = useState(null)
-  const [nutrition, setNutrition]       = useState(null)
-  const [weekly, setWeekly]             = useState(null)
-  const [weightHistory, setWeightHistory] = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState('')
+  // ── Week navigator state ─────────────────────────────────────
+  const [currentMonday, setCurrentMonday] = useState(() => getMondayOf(today()))
+  const thisMonday = getMondayOf(today())
+  const isCurrentWeek = currentMonday === thisMonday
 
+  const [trend, setTrend]                 = useState(null)
+  const [nutrition, setNutrition]         = useState(null)
+  const [weekly, setWeekly]               = useState(null)
+  const [weekDayData, setWeekDayData]     = useState([])
+  const [loading, setLoading]             = useState(true)
+  const [weekLoading, setWeekLoading]     = useState(false)
+  const [error, setError]                 = useState('')
+
+  // Load main dashboard data
   useEffect(() => {
     if (!user) return
-
     Promise.all([
       getWeightTrend(user.id, 30),
       getNutritionSummary(user.id, today()),
       getWeeklySummary(user.id, 6),
-      getWeightHistory(user.id),
     ])
-      .then(([t, n, w, wh]) => {
+      .then(([t, n, w]) => {
         setTrend(t.data)
         setNutrition(n.data)
         setWeekly(w.data)
-        setWeightHistory(wh.data.entries || [])
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [user])
 
+  // Load per-day calorie data for selected week
+  useEffect(() => {
+    if (!user) return
+    setWeekLoading(true)
+    const days = buildWeekDays(currentMonday)
+
+    // Fetch nutrition summary for each day of the week
+    Promise.all(
+      days.map((d) =>
+        getNutritionSummary(user.id, d.date)
+          .then((r) => ({ ...d, calories: Math.round(r.data?.total_calories ?? 0) }))
+          .catch(() => d)
+      )
+    )
+      .then(setWeekDayData)
+      .finally(() => setWeekLoading(false))
+  }, [user, currentMonday])
+
   if (loading) return <PageLoader />
-
-  const weeklyData =
-    weekly?.weeks?.map((w) => ({
-      week: fmt(w.week_start),
-      calories: w.avg_daily_calories,
-      protein: w.avg_daily_protein_g,
-      workouts: w.total_workout_days,
-    })) || []
-
-  const weightData = weightHistory.map((e) => ({
-    date: fmt(e.date),
-    kg: e.weight_kg,
-  }))
 
   const currentWeight = trend?.end_weight_kg
 
@@ -115,10 +157,7 @@ export default function Dashboard() {
         <h1 className="font-display text-5xl tracking-widest text-text">DASHBOARD</h1>
         <p className="text-dim text-sm mt-1">
           {new Date().toLocaleDateString('en', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
           })}
         </p>
       </div>
@@ -133,7 +172,6 @@ export default function Dashboard() {
           accent="lime"
           icon="◈"
         />
-
         <StatCard
           label="Calories Today"
           value={Math.round(nutrition?.total_calories ?? 0)}
@@ -142,7 +180,6 @@ export default function Dashboard() {
           accent="ember"
           icon="◎"
         />
-
         <StatCard
           label="Protein Today"
           value={Math.round(nutrition?.total_protein_g ?? 0)}
@@ -151,14 +188,11 @@ export default function Dashboard() {
           accent="ice"
           icon="◉"
         />
-
         <StatCard
           label="Weight Trend"
           value={
             trend?.change_kg != null
-              ? trend.change_kg > 0
-                ? `+${trend.change_kg}`
-                : trend.change_kg
+              ? trend.change_kg > 0 ? `+${trend.change_kg}` : trend.change_kg
               : '—'
           }
           unit="kg"
@@ -172,14 +206,12 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Macros */}
+      {/* Today's Macros — no TrendBadge, no "No data" */}
       {nutrition && (
         <Card>
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-2xl tracking-wide">Today's Macros</h2>
-            {trend?.trend && <TrendBadge trend={trend.trend} />}
           </div>
-
           <div className="grid sm:grid-cols-2 gap-5">
             <MacroBar
               label="Calories"
@@ -209,48 +241,60 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Charts */}
-      <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <SectionHeader title="Weight History" />
-          {weightData.length === 0 ? (
-            <EmptyState
-              icon="◈"
-              title="No weight data"
-              description="Log your weight to see the trend chart."
-            />
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={weightData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="kg"
-                  stroke="#C8F135"
-                  fillOpacity={0.2}
-                  fill="#C8F135"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-
-        <Card>
+      {/* Weekly Calories — Mon to Sun navigator */}
+      <Card>
+        {/* Week header with prev/next */}
+        <div className="flex items-center justify-between mb-5">
           <SectionHeader title="Weekly Calories" />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCurrentMonday(addDays(currentMonday, -7))}
+              className="w-7 h-7 rounded-lg border border-muted text-dim hover:border-lime/50
+                hover:text-lime transition-all flex items-center justify-center text-sm"
+            >
+              ‹
+            </button>
+            <span className="text-xs font-mono text-dim min-w-[120px] text-center">
+              {weekLabel(currentMonday)}
+            </span>
+            <button
+              onClick={() => setCurrentMonday(addDays(currentMonday, 7))}
+              disabled={isCurrentWeek}
+              className={`w-7 h-7 rounded-lg border border-muted flex items-center justify-center
+                text-sm transition-all
+                ${isCurrentWeek
+                  ? 'opacity-30 cursor-not-allowed text-dim'
+                  : 'text-dim hover:border-lime/50 hover:text-lime'
+                }`}
+            >
+              ›
+            </button>
+          </div>
+        </div>
+
+        {weekLoading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-border border-t-lime rounded-full animate-spin" />
+          </div>
+        ) : (
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weeklyData}>
+            <BarChart data={weekDayData} barSize={28}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-              <XAxis dataKey="week" />
-              <YAxis />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="calories" fill="#FF4D1C" />
+              <Bar dataKey="calories" fill="#FF4D1C" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </Card>
-      </div>
+        )}
+
+        {/* Calorie goal reference line label */}
+        {user?.calorie_goal && (
+          <p className="text-[10px] text-dim font-mono mt-2 text-right">
+            Daily goal: {user.calorie_goal} kcal
+          </p>
+        )}
+      </Card>
     </div>
   )
 }
