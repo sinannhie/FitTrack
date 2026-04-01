@@ -24,7 +24,7 @@ import {
   ReferenceLine,
 } from 'recharts'
 
-// ── Date helpers ─────────────────────────────────────────────────
+// ── DATE HELPERS ─────────────────────────────────────
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 
@@ -42,7 +42,6 @@ const addDays = (dateStr, n) => {
   return d.toISOString().split('T')[0]
 }
 
-// ✅ FIXED FORMAT
 const weekRangeLabel = (monday) => {
   const sunday = addDays(monday, 6)
 
@@ -54,9 +53,10 @@ const weekRangeLabel = (monday) => {
   return `${format(monday)} – ${format(sunday)}`
 }
 
-// ✅ TREND FUNCTION
+// ── TREND LOGIC ─────────────────────────────────────
+
 const getTrend = (total, goal) => {
-  if (!goal || !total) return null
+  if (!goal || total == null) return null
   const weeklyGoal = goal * 7
 
   if (total > weeklyGoal) return 'up'
@@ -64,25 +64,42 @@ const getTrend = (total, goal) => {
   return 'equal'
 }
 
+const trendLabel = (trend) => {
+  if (trend === 'up') return '↑ Above goal'
+  if (trend === 'down') return '↓ Below goal'
+  return '✓ On track'
+}
+
+// ── COMPONENT ─────────────────────────────────────
+
 export default function Dashboard() {
   const { user } = useUser()
 
-  const proteinGoal = user?.protein_goal ?? Math.round((user?.weight ?? 0) * 2)
+  const proteinGoal =
+    user?.protein_goal ?? Math.round((user?.weight ?? 0) * 2)
 
-  const [currentMonday, setCurrentMonday] = useState(() => getMondayOf(todayStr()))
+  const [currentMonday, setCurrentMonday] = useState(() =>
+    getMondayOf(todayStr())
+  )
+
   const thisMonday = getMondayOf(todayStr())
   const isCurrentWeek = currentMonday === thisMonday
 
   const [trend, setTrend] = useState(null)
   const [nutrition, setNutrition] = useState(null)
   const [weekly, setWeekly] = useState(null)
+
   const [loading, setLoading] = useState(true)
   const [weekLoading, setWeekLoading] = useState(false)
   const [error, setError] = useState('')
+
   const [chartMode, setChartMode] = useState('calories')
+
+  // ── LOAD DAILY DATA ───────────────────────────────
 
   useEffect(() => {
     if (!user) return
+
     Promise.all([
       getWeightTrend(user.id, 30),
       getNutritionSummary(user.id, todayStr()),
@@ -95,9 +112,13 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [user])
 
+  // ── LOAD WEEKLY DATA ─────────────────────────────
+
   useEffect(() => {
     if (!user) return
+
     setWeekLoading(true)
+
     getWeeklyNutrition(user.id, currentMonday)
       .then((r) => setWeekly(r.data))
       .catch(() => setWeekly(null))
@@ -108,21 +129,33 @@ export default function Dashboard() {
 
   const chartData = weekly?.days ?? []
 
-  // ✅ NEW COLORS
-  const chartColor = chartMode === 'calories' ? '#f97316' : '#22c55e'
-  const chartGoal = chartMode === 'calories' ? user?.calorie_goal : proteinGoal
+  const chartColor =
+    chartMode === 'calories' ? '#f97316' : '#22c55e'
 
-  // ✅ TREND
-  const calorieTrend = getTrend(weekly?.total_calories, user?.calorie_goal)
-  const proteinTrend = getTrend(weekly?.total_protein_g, proteinGoal)
+  const chartGoal =
+    chartMode === 'calories'
+      ? user?.calorie_goal ?? 0
+      : proteinGoal ?? 0
+
+  const calorieTrend = getTrend(
+    weekly?.total_calories,
+    user?.calorie_goal
+  )
+
+  const proteinTrend = getTrend(
+    weekly?.total_protein_g,
+    proteinGoal
+  )
 
   return (
     <div className="space-y-8">
+
       <ErrorBanner message={error} />
 
       <h1 className="text-4xl font-bold">Dashboard</h1>
 
-      {/* TOP CARDS */}
+      {/* ── TOP CARDS ───────────────────────── */}
+
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
 
         <StatCard
@@ -145,13 +178,7 @@ export default function Dashboard() {
           label="Weekly Calories"
           value={weekly ? Math.round(weekly.total_calories) : '—'}
           unit="kcal"
-          sub={
-            calorieTrend === 'up'
-              ? '↑ Above goal'
-              : calorieTrend === 'down'
-              ? '↓ Below goal'
-              : '✓ On track'
-          }
+          sub={trendLabel(calorieTrend)}
           accent="ember"
         />
 
@@ -159,18 +186,13 @@ export default function Dashboard() {
           label="Weekly Protein"
           value={weekly ? Math.round(weekly.total_protein_g) : '—'}
           unit="g"
-          sub={
-            proteinTrend === 'up'
-              ? '↑ Above goal'
-              : proteinTrend === 'down'
-              ? '↓ Below goal'
-              : '✓ On track'
-          }
+          sub={trendLabel(proteinTrend)}
           accent="ice"
         />
       </div>
 
-      {/* WEEKLY CHART */}
+      {/* ── WEEKLY CHART ───────────────────── */}
+
       <Card>
         <div className="flex justify-between items-center mb-4">
           <SectionHeader title="Weekly Overview" />
@@ -181,15 +203,29 @@ export default function Dashboard() {
 
         {/* Toggle */}
         <div className="flex gap-2 mb-3">
-          <button onClick={() => setChartMode('calories')}>Calories</button>
-          <button onClick={() => setChartMode('protein')}>Protein</button>
+          <button
+            onClick={() => setChartMode('calories')}
+            className={chartMode === 'calories' ? 'font-bold' : ''}
+          >
+            Calories
+          </button>
+
+          <button
+            onClick={() => setChartMode('protein')}
+            className={chartMode === 'protein' ? 'font-bold' : ''}
+          >
+            Protein
+          </button>
         </div>
 
         {/* Navigation */}
         <div className="flex gap-3 mb-4">
-          <button onClick={() => setCurrentMonday(addDays(currentMonday, -7))}>
+          <button
+            onClick={() => setCurrentMonday(addDays(currentMonday, -7))}
+          >
             ‹
           </button>
+
           <button
             onClick={() => setCurrentMonday(addDays(currentMonday, 7))}
             disabled={isCurrentWeek}
@@ -201,19 +237,22 @@ export default function Dashboard() {
         {/* Chart */}
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={chartData}>
-            {/* ❌ removed grid */}
             <XAxis dataKey="label" />
             <YAxis />
             <Tooltip />
 
-            <ReferenceLine
-              y={chartGoal}
-              stroke={chartColor}
-              strokeDasharray="4 4"
-            />
+            {chartGoal > 0 && (
+              <ReferenceLine
+                y={chartGoal}
+                stroke={chartColor}
+                strokeDasharray="4 4"
+              />
+            )}
 
             <Bar
-              dataKey={chartMode === 'calories' ? 'calories' : 'protein'}
+              dataKey={
+                chartMode === 'calories' ? 'calories' : 'protein'
+              }
               fill={chartColor}
               radius={[6, 6, 0, 0]}
             />
@@ -223,12 +262,19 @@ export default function Dashboard() {
         {/* Summary */}
         {weekly && (
           <div className="flex gap-6 mt-4 text-sm">
-            <div>Week: {Math.round(weekly.total_calories)} kcal</div>
-            <div>Avg: {Math.round(weekly.total_calories / 7)} kcal</div>
-            <div>Protein: {Math.round(weekly.total_protein_g)} g</div>
+            <div>
+              Week: {Math.round(weekly.total_calories)} kcal
+            </div>
+            <div>
+              Avg: {Math.round(weekly.total_calories / 7)} kcal
+            </div>
+            <div>
+              Protein: {Math.round(weekly.total_protein_g)} g
+            </div>
           </div>
         )}
       </Card>
+
     </div>
   )
 }

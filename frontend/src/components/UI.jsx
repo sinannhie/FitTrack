@@ -1,4 +1,4 @@
-// ── Shared UI primitives ──────────────────────────────────────────────────────
+// ── Shared UI primitives (UPDATED) ───────────────────────────────
 
 export function Card({ children, className = '', glow = false }) {
   return (
@@ -19,9 +19,10 @@ export function StatCard({ label, value, unit, sub, accent = 'lime', icon, delay
     ice: 'text-ice',
     dim: 'text-dim',
   }
+
   return (
     <Card
-      className="animate-fade-up opacity-0 flex flex-col gap-3"
+      className="animate-fade-up opacity-0 flex flex-col gap-2"
       style={{ animationDelay: `${delay}ms`, animationFillMode: 'forwards' }}
       glow
     >
@@ -29,13 +30,19 @@ export function StatCard({ label, value, unit, sub, accent = 'lime', icon, delay
         <span className="label">{label}</span>
         {icon && <span className={`text-lg ${accentMap[accent]}`}>{icon}</span>}
       </div>
+
       <div className="flex items-end gap-2">
         <span className={`font-display text-5xl tracking-wide ${accentMap[accent]}`}>
           {value ?? '—'}
         </span>
-        {unit && <span className="text-dim text-sm mb-1.5 font-mono">{unit}</span>}
+        {unit && <span className="text-dim text-sm mb-1 font-mono">{unit}</span>}
       </div>
-      {sub && <p className="text-xs text-dim">{sub}</p>}
+
+      {sub && (
+        <p className="text-xs text-dim leading-tight">
+          {sub}
+        </p>
+      )}
     </Card>
   )
 }
@@ -46,7 +53,9 @@ export function Button({ children, onClick, variant = 'primary', disabled = fals
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`${variant === 'primary' ? 'btn-primary' : 'btn-ghost'} ${className}`}
+      className={`${variant === 'primary' ? 'btn-primary' : 'btn-ghost'} ${
+        disabled ? 'opacity-50 cursor-not-allowed' : ''
+      } ${className}`}
     >
       {children}
     </button>
@@ -57,7 +66,11 @@ export function Input({ label, id, className = '', ...props }) {
   return (
     <div>
       {label && <label htmlFor={id} className="label">{label}</label>}
-      <input id={id} className={`input-field ${className}`} {...props} />
+      <input
+        id={id}
+        className={`input-field ${className}`}
+        {...props}
+      />
     </div>
   )
 }
@@ -84,6 +97,7 @@ export function Badge({ children, color = 'lime' }) {
     ice: 'bg-ice/10 text-ice border-ice/20',
     gray: 'bg-muted/30 text-dim border-border',
   }
+
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-mono font-medium border ${colors[color]}`}>
       {children}
@@ -146,7 +160,7 @@ export function Divider() {
   return <div className="border-t border-border my-5" />
 }
 
-// Progress bar for macro tracking
+// 🔥 UPDATED MACRO BAR (VERY IMPORTANT)
 export function MacroBar({ label, current, goal, color = 'lime' }) {
   const colorMap = {
     lime:  'bg-lime',
@@ -156,11 +170,8 @@ export function MacroBar({ label, current, goal, color = 'lime' }) {
   }
 
   const hasGoal = goal != null && goal > 0
-  const over    = hasGoal && current > goal
+  const over = hasGoal && current > goal
 
-  // With goal    → % of goal, capped at 100%
-  // Without goal → % of a sensible reference so bar still moves:
-  //                Calories: 3000 kcal ref | everything else: 300 g ref
   let pct
   if (hasGoal) {
     pct = Math.min((current / goal) * 100, 100)
@@ -172,17 +183,27 @@ export function MacroBar({ label, current, goal, color = 'lime' }) {
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-xs">
-        <span className="text-dim font-medium uppercase tracking-wider">{label}</span>
+        <span className="text-dim font-medium uppercase tracking-wider">
+          {label}
+        </span>
+
         <span className={`font-mono ${over ? 'text-ember' : 'text-dim'}`}>
           {Math.round(current)}
+
           {hasGoal && (
             <>
               {' / '}{goal}
-              <span className="text-dim/60"> {over ? 'over' : 'left'}</span>
+              <span className="text-dim/60">
+                {over
+                  ? ' over'
+                  : ` (${Math.round(goal - current)} left)`
+                }
+              </span>
             </>
           )}
         </span>
       </div>
+
       <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ${
@@ -195,14 +216,15 @@ export function MacroBar({ label, current, goal, color = 'lime' }) {
   )
 }
 
-// Trend indicator arrow
+// Trend badge
 export function TrendBadge({ trend }) {
   const map = {
-    losing:            { label: '↓ Losing',  color: 'ice'   },
-    gaining:           { label: '↑ Gaining', color: 'ember' },
-    stable:            { label: '→ Stable',  color: 'lime'  },
-    insufficient_data: { label: '? No data', color: 'gray'  },
+    losing:  { label: '↓ Losing',  color: 'ice' },
+    gaining: { label: '↑ Gaining', color: 'ember' },
+    stable:  { label: '→ Stable',  color: 'lime' },
+    insufficient_data: { label: '? No data', color: 'gray' },
   }
+
   const config = map[trend] || map.insufficient_data
   return <Badge color={config.color}>{config.label}</Badge>
 }
