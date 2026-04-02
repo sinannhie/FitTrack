@@ -116,6 +116,23 @@ class DailyNutritionSummary(BaseModel):
     food_entries: int
 
 
+    # ══════════════════════════════════════════════════════════════════════════════
+# WEEKLY NUTRITION SUMMARY (FIX)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class WeeklyNutritionSummary(BaseModel):
+    user_id: int
+    week_start: datetime.date
+    week_end: datetime.date
+    total_calories: float
+    total_protein_g: float
+    total_carbs_g: float
+    total_fat_g: float
+    avg_daily_calories: float
+    avg_daily_protein: float
+    days_tracked: int
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # LEGACY WORKOUT TRACKING (flat model — kept for backward compat)
 # ══════════════════════════════════════════════════════════════════════════════
