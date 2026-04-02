@@ -1,145 +1,130 @@
-// ── Shared UI primitives (UPDATED) ───────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// components/UI.jsx
+// Shared component library for FitTrack AI
+// ─────────────────────────────────────────────────────────────────────────────
 
-export function Card({ children, className = '', glow = false }) {
+// ── Card ─────────────────────────────────────────────────────────────────────
+
+export function Card({ children, className = '', style = {} }) {
   return (
     <div
-      className={`card transition-all duration-200 ${
-        glow ? 'hover:border-lime/30 hover:shadow-lg hover:shadow-lime/5' : 'hover:border-muted'
-      } ${className}`}
+      className={`bg-card border border-border rounded-2xl p-5 ${className}`}
+      style={style}
     >
       {children}
     </div>
   )
 }
 
-export function StatCard({ label, value, unit, sub, accent = 'lime', icon, delay = 0 }) {
-  const accentMap = {
-    lime: 'text-lime',
-    ember: 'text-ember',
-    ice: 'text-ice',
-    dim: 'text-dim',
-  }
+// ── StatCard ──────────────────────────────────────────────────────────────────
+
+const ACCENT_TEXT = {
+  lime:  'text-lime',
+  ice:   'text-ice',
+  ember: 'text-ember',
+  dim:   'text-dim',
+  red:   'text-red-400',
+}
+
+export function StatCard({ label, value, unit = '', sub = '', accent = 'lime', icon = '', delay = 0 }) {
+  const textColor = ACCENT_TEXT[accent] || 'text-lime'
 
   return (
-    <Card
-      className="animate-fade-up opacity-0 flex flex-col gap-2"
+    <div
+      className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-2
+                 hover:border-muted transition-colors animate-fade-up opacity-0"
       style={{ animationDelay: `${delay}ms`, animationFillMode: 'forwards' }}
-      glow
     >
       <div className="flex items-center justify-between">
-        <span className="label">{label}</span>
-        {icon && <span className={`text-lg ${accentMap[accent]}`}>{icon}</span>}
+        <p className="text-[10px] font-mono uppercase tracking-widest text-dim">{label}</p>
+        {icon && <span className="text-dim text-xs">{icon}</span>}
       </div>
-
-      <div className="flex items-end gap-2">
-        <span className={`font-display text-5xl tracking-wide ${accentMap[accent]}`}>
-          {value ?? '—'}
-        </span>
-        {unit && <span className="text-dim text-sm mb-1 font-mono">{unit}</span>}
+      <div className="flex items-baseline gap-1.5">
+        <span className={`font-display text-2xl font-bold ${textColor}`}>{value}</span>
+        {unit && <span className="text-xs text-dim font-body">{unit}</span>}
       </div>
-
-      {sub && (
-        <p className="text-xs text-dim leading-tight">
-          {sub}
-        </p>
-      )}
-    </Card>
+      {sub && <p className="text-[11px] text-dim font-body leading-tight">{sub}</p>}
+    </div>
   )
 }
 
-export function Button({ children, onClick, variant = 'primary', disabled = false, className = '', type = 'button' }) {
+// ── Input ─────────────────────────────────────────────────────────────────────
+
+export function Input({
+  label,
+  id,
+  type = 'text',
+  placeholder = '',
+  value,
+  onChange,
+  className = '',
+  autoFocus = false,
+  min,
+  max,
+  step,
+  onFocus,
+  onBlur,
+  disabled = false,
+}) {
+  return (
+    <div className="w-full">
+      {label && (
+        <label htmlFor={id} className="label">
+          {label}
+        </label>
+      )}
+      <input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        className={`input-field ${className}`}
+        autoFocus={autoFocus}
+        min={min}
+        max={max}
+        step={step}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        disabled={disabled}
+      />
+    </div>
+  )
+}
+
+// ── Button ────────────────────────────────────────────────────────────────────
+
+export function Button({ children, type = 'button', onClick, disabled = false, className = '' }) {
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`${variant === 'primary' ? 'btn-primary' : 'btn-ghost'} ${
-        disabled ? 'opacity-50 cursor-not-allowed' : ''
-      } ${className}`}
+      className={`
+        px-5 py-2.5 rounded-xl bg-lime text-void font-display font-semibold text-sm
+        hover:bg-lime/90 active:scale-[0.98] transition-all duration-150
+        disabled:opacity-40 disabled:cursor-not-allowed
+        ${className}
+      `}
     >
       {children}
     </button>
   )
 }
 
-export function Input({ label, id, className = '', ...props }) {
-  return (
-    <div>
-      {label && <label htmlFor={id} className="label">{label}</label>}
-      <input
-        id={id}
-        className={`input-field ${className}`}
-        {...props}
-      />
-    </div>
-  )
-}
-
-export function Select({ label, id, children, className = '', ...props }) {
-  return (
-    <div>
-      {label && <label htmlFor={id} className="label">{label}</label>}
-      <select
-        id={id}
-        className={`input-field appearance-none cursor-pointer ${className}`}
-        {...props}
-      >
-        {children}
-      </select>
-    </div>
-  )
-}
-
-export function Badge({ children, color = 'lime' }) {
-  const colors = {
-    lime: 'bg-lime/10 text-lime border-lime/20',
-    ember: 'bg-ember/10 text-ember border-ember/20',
-    ice: 'bg-ice/10 text-ice border-ice/20',
-    gray: 'bg-muted/30 text-dim border-border',
-  }
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-mono font-medium border ${colors[color]}`}>
-      {children}
-    </span>
-  )
-}
-
-export function Spinner({ size = 'md' }) {
-  const sizes = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-10 h-10' }
-  return (
-    <div className={`${sizes[size]} border-2 border-border border-t-lime rounded-full animate-spin`} />
-  )
-}
-
-export function PageLoader() {
-  return (
-    <div className="flex items-center justify-center min-h-64">
-      <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
-        <p className="text-dim text-sm font-mono">Loading...</p>
-      </div>
-    </div>
-  )
-}
-
-export function EmptyState({ icon, title, description }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-3">
-      <span className="text-4xl opacity-30">{icon}</span>
-      <p className="text-text font-medium">{title}</p>
-      {description && <p className="text-dim text-sm text-center max-w-xs">{description}</p>}
-    </div>
-  )
-}
+// ── ErrorBanner ───────────────────────────────────────────────────────────────
 
 export function ErrorBanner({ message, onRetry }) {
   if (!message) return null
   return (
-    <div className="flex items-center justify-between gap-4 bg-ember/10 border border-ember/20 rounded-xl px-4 py-3 text-sm text-ember">
+    <div className="flex items-center justify-between gap-3 bg-red-400/10 border border-red-400/20
+                    rounded-xl px-4 py-3 text-sm font-body text-red-400">
       <span>⚠ {message}</span>
       {onRetry && (
-        <button onClick={onRetry} className="text-ember underline text-xs hover:no-underline shrink-0">
+        <button
+          onClick={onRetry}
+          className="text-xs underline underline-offset-2 hover:no-underline flex-shrink-0"
+        >
           Retry
         </button>
       )}
@@ -147,68 +132,63 @@ export function ErrorBanner({ message, onRetry }) {
   )
 }
 
-export function SectionHeader({ title, action }) {
+// ── SectionHeader ─────────────────────────────────────────────────────────────
+
+export function SectionHeader({ title, subtitle = '' }) {
   return (
-    <div className="flex items-center justify-between mb-5">
-      <h2 className="font-display text-2xl tracking-wide text-text">{title}</h2>
-      {action}
+    <div className="mb-1">
+      <h3 className="font-display text-base font-semibold tracking-wide text-text">{title}</h3>
+      {subtitle && <p className="text-xs text-dim font-body mt-0.5">{subtitle}</p>}
     </div>
   )
 }
 
-export function Divider() {
-  return <div className="border-t border-border my-5" />
+// ── EmptyState ────────────────────────────────────────────────────────────────
+
+export function EmptyState({ icon = '◎', title = 'Nothing here yet', description = '' }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+      <span className="text-3xl mb-1">{icon}</span>
+      <p className="text-sm font-display font-semibold text-dim">{title}</p>
+      {description && <p className="text-xs text-dim/70 font-body max-w-xs">{description}</p>}
+    </div>
+  )
 }
 
-// 🔥 UPDATED MACRO BAR (VERY IMPORTANT)
-export function MacroBar({ label, current, goal, color = 'lime' }) {
-  const colorMap = {
-    lime:  'bg-lime',
-    ember: 'bg-ember',
-    ice:   'bg-ice',
-    dim:   'bg-dim',
-  }
+// ── PageLoader ────────────────────────────────────────────────────────────────
 
-  const hasGoal = goal != null && goal > 0
-  const over = hasGoal && current > goal
+export function PageLoader() {
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+      <div className="w-8 h-8 border-2 border-lime/30 border-t-lime rounded-full animate-spin" />
+      <p className="text-dim text-sm font-body font-mono">Loading…</p>
+    </div>
+  )
+}
 
-  let pct
-  if (hasGoal) {
-    pct = Math.min((current / goal) * 100, 100)
-  } else {
-    const ref = label === 'Calories' ? 3000 : 300
-    pct = Math.min((current / ref) * 100, 100)
+// ── MacroBar ──────────────────────────────────────────────────────────────────
+
+export function MacroBar({ label, value, goal, color = 'lime' }) {
+  const pct = goal > 0 ? Math.min(100, Math.round((value / goal) * 100)) : 0
+  const COLORS = {
+    lime:  { bar: 'bg-lime',     text: 'text-lime'    },
+    ice:   { bar: 'bg-ice',      text: 'text-ice'     },
+    ember: { bar: 'bg-ember',    text: 'text-ember'   },
+    red:   { bar: 'bg-red-400',  text: 'text-red-400' },
   }
+  const c = COLORS[color] || COLORS.lime
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-xs">
-        <span className="text-dim font-medium uppercase tracking-wider">
-          {label}
-        </span>
-
-        <span className={`font-mono ${over ? 'text-ember' : 'text-dim'}`}>
-          {Math.round(current)}
-
-          {hasGoal && (
-            <>
-              {' / '}{goal}
-              <span className="text-dim/60">
-                {over
-                  ? ' over'
-                  : ` (${Math.round(goal - current)} left)`
-                }
-              </span>
-            </>
-          )}
+    <div className="space-y-1">
+      <div className="flex justify-between items-baseline">
+        <span className="text-xs text-dim font-body">{label}</span>
+        <span className={`text-xs font-mono font-semibold ${c.text}`}>
+          {value} <span className="text-dim font-normal">/ {goal}</span>
         </span>
       </div>
-
-      <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-700 ${
-            over ? 'bg-ember' : colorMap[color]
-          }`}
+          className={`h-full rounded-full transition-all duration-500 ${c.bar}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -216,15 +196,42 @@ export function MacroBar({ label, current, goal, color = 'lime' }) {
   )
 }
 
-// Trend badge
-export function TrendBadge({ trend }) {
-  const map = {
-    losing:  { label: '↓ Losing',  color: 'ice' },
-    gaining: { label: '↑ Gaining', color: 'ember' },
-    stable:  { label: '→ Stable',  color: 'lime' },
-    insufficient_data: { label: '? No data', color: 'gray' },
-  }
+// ── TrendBadge ────────────────────────────────────────────────────────────────
 
-  const config = map[trend] || map.insufficient_data
-  return <Badge color={config.color}>{config.label}</Badge>
+const TREND_CONFIG = {
+  losing:             { label: 'Losing',     bg: 'bg-ice/10',   text: 'text-ice',   icon: '↓' },
+  gaining:            { label: 'Gaining',    bg: 'bg-ember/10', text: 'text-ember', icon: '↑' },
+  stable:             { label: 'Stable',     bg: 'bg-lime/10',  text: 'text-lime',  icon: '→' },
+  insufficient_data:  { label: 'Need Data',  bg: 'bg-muted',    text: 'text-dim',   icon: '–' },
+}
+
+export function TrendBadge({ trend }) {
+  const cfg = TREND_CONFIG[trend] || TREND_CONFIG.insufficient_data
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono
+                      font-semibold ${cfg.bg} ${cfg.text}`}>
+      <span>{cfg.icon}</span>
+      {cfg.label}
+    </span>
+  )
+}
+
+// ── Badge ─────────────────────────────────────────────────────────────────────
+
+const BADGE_COLORS = {
+  lime:  'bg-lime/10  text-lime   border-lime/20',
+  ice:   'bg-ice/10   text-ice    border-ice/20',
+  ember: 'bg-ember/10 text-ember  border-ember/20',
+  dim:   'bg-muted    text-dim    border-border',
+  red:   'bg-red-400/10 text-red-400 border-red-400/20',
+}
+
+export function Badge({ children, color = 'dim' }) {
+  const cls = BADGE_COLORS[color] || BADGE_COLORS.dim
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs
+                      font-mono font-semibold border ${cls}`}>
+      {children}
+    </span>
+  )
 }
