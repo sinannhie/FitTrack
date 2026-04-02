@@ -235,3 +235,15 @@ export function Badge({ children, color = 'dim' }) {
     </span>
   )
 }
+
+// ── Spinner ───────────────────────────────────────────────────────────────────
+
+export function Spinner({ size = 'md', className = '' }) {
+  const sizes = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-8 h-8' }
+  return (
+    <div
+      className={`${sizes[size] || sizes.md} border-2 border-lime/30 border-t-lime
+                  rounded-full animate-spin ${className}`}
+    />
+  )
+}
