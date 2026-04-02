@@ -7,7 +7,7 @@ SQLAlchemy ORM table definitions.
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, Float, String, Date, DateTime,
-    ForeignKey, Text, UniqueConstraint,
+    ForeignKey, Text, Boolean, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -18,15 +18,13 @@ class User(Base):
 
     id            = Column(Integer, primary_key=True, index=True)
     name          = Column(String(100), nullable=False)
-
     age           = Column(Integer)
     height        = Column(Float)
     weight        = Column(Float)
     goal          = Column(String, nullable=False)
-
     target_weight = Column(Float,   nullable=True)
     calorie_goal  = Column(Integer, nullable=True)
-
+    protein_goal  = Column(Integer, nullable=True)   # ← ADDED
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     weight_entries   = relationship("WeightEntry",    back_populates="user", cascade="all, delete-orphan")
@@ -43,12 +41,12 @@ class FoodLog(Base):
     date       = Column(Date,    nullable=False, index=True)
     food_name  = Column(String(150), nullable=False)
     quantity_g = Column(Float,   nullable=False)
-
     calories   = Column(Float, nullable=False)
     protein_g  = Column(Float, nullable=False)
     carbs_g    = Column(Float, nullable=False)
     fat_g      = Column(Float, nullable=False)
-
+    meal_type  = Column(String(20), nullable=True)    # ← ADDED
+    is_custom  = Column(Boolean, nullable=True, default=False)  # ← ADDED
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="food_logs")
@@ -78,6 +76,7 @@ class WeightEntry(Base):
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     weight_kg  = Column(Float, nullable=False)
     date       = Column(Date, nullable=False)
+    notes      = Column(Text, nullable=True)    # ← ADDED
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="weight_entries")
