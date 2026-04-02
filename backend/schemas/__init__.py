@@ -5,8 +5,12 @@ from schemas.schemas import (
     FoodDBItem, FoodLogCreate, FoodLogResponse,
     DailyNutritionSummary,
     WorkoutCreate, WorkoutResponse, WorkoutSessionSummary,
+    # New session-based schemas
+    SetCreate, SetResponse,
+    ExerciseCreate, ExerciseResponse,
+    WorkoutSessionCreate, WorkoutSessionResponse,
+    # Analytics
     WeightTrendResponse,
     CorrelationPoint, CalorieWeightCorrelationResponse,
     WeeklySummary, WeeklySummaryResponse,
 )
-
