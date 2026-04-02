@@ -2,54 +2,144 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Inter from Google Fonts – add to index.html too */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 /* ── Base ──────────────────────────────────────────────────────── */
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
-  html { scroll-behavior: smooth; }
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv02','cv03','cv04','cv11';
+  }
 
   body {
-    @apply bg-surface text-text font-body antialiased;
+    @apply bg-surface text-text;
+    font-family: 'Inter', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif;
     min-height: 100vh;
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  /* Thin scrollbar */
+  ::-webkit-scrollbar       { width: 3px; height: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-muted rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-border; }
+  ::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #68687a; }
 }
 
-/* ── Components ────────────────────────────────────────────────── */
+/* ── Design Tokens (components) ────────────────────────────────── */
 @layer components {
 
-  /* Card */
+  /* ── Cards ─────────────────────────────── */
   .card {
-    @apply bg-card border border-border rounded-2xl p-5;
+    background: #161619;
+    border: 1px solid #2e2e35;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
   }
 
-  /* Form input */
+  .card-glass {
+    background: rgba(22, 22, 25, 0.82);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* ── Form inputs ────────────────────────── */
   .input-field {
-    @apply w-full bg-surface border border-border rounded-xl
-           px-3 py-2.5 text-sm text-text font-body
-           placeholder:text-dim
-           focus:outline-none focus:border-lime/60 focus:ring-1 focus:ring-lime/20
-           transition-colors duration-150
-           disabled:opacity-40 disabled:cursor-not-allowed;
+    width: 100%;
+    background: rgba(38,38,44,0.6);
+    border: 1px solid rgba(46,46,53,0.8);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #f2f2f7;
+    font-family: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    outline: none;
+  }
+  .input-field::placeholder { color: rgba(104,104,122,0.6); }
+  .input-field:hover  { border-color: rgba(46,46,53,1); background: rgba(38,38,44,0.8); }
+  .input-field:focus  {
+    border-color: rgba(168,240,74,0.4);
+    background: rgba(38,38,44,0.9);
+    box-shadow: 0 0 0 3px rgba(168,240,74,0.08);
   }
 
-  /* Form label */
+  /* ── Labels ─────────────────────────────── */
   .label {
-    @apply block text-[10px] font-mono uppercase tracking-widest text-dim mb-1.5;
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: rgba(104,104,122,0.9);
+    margin-bottom: 6px;
+    text-transform: uppercase;
   }
 
-  /* Sidebar nav active highlight */
-  .nav-active {
-    @apply bg-lime/10 text-lime;
+  /* ── Buttons ────────────────────────────── */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    background: #a8f04a;
+    color: #08080a;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(168,240,74,0.1);
+    user-select: none;
+    -webkit-user-select: none;
   }
-}
+  .btn-primary:hover    { background: #b8f562; box-shadow: 0 0 20px rgba(168,240,74,0.2); }
+  .btn-primary:active   { transform: scale(0.97); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-/* ── Utilities ─────────────────────────────────────────────────── */
-@layer utilities {
-  .text-balance { text-wrap: balance; }
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 16px;
+    background: transparent;
+    color: rgba(104,104,122,1);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    border-radius: 12px;
+    border: 1px solid rgba(46,46,53,0.8);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .btn-ghost:hover  { border-color: #2e2e35; color: #f2f2f7; background: rgba(38,38,44,0.5); }
+  .btn-ghost:active { transform: scale(0.97); }
+
+  /* ── Skeleton shimmer ─────────────────── */
+  .skeleton {
+    background: linear-gradient(90deg, #1c1c20 25%, #26262c 50%, #1c1c20 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.8s infinite linear;
+    border-radius: 10px;
+  }
+
+  /* ── Swipe action backgrounds ─────────── */
+  .swipe-bg-delete {
+    background: linear-gradient(to left, #e11d48, #fb7185);
+  }
+  .swipe-bg-dup {
+    background: linear-gradient(to right, #78cc30, #a8f04a);
+  }
 }

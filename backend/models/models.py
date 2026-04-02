@@ -1,14 +1,9 @@
 """
-models/models.py
-────────────────
-SQLAlchemy ORM table definitions.
+models/models.py  — SQLAlchemy ORM table definitions.
 """
 
 from datetime import datetime
-from sqlalchemy import (
-    Column, Integer, Float, String, Date, DateTime,
-    ForeignKey, Text, Boolean, UniqueConstraint,  # ✅ FIX: removed duplicate import block
-)
+from sqlalchemy import Column, Integer, Float, String, Date, DateTime, ForeignKey, Text, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -36,24 +31,20 @@ class FoodLog(Base):
     __tablename__ = "food_logs"
 
     id         = Column(Integer, primary_key=True, index=True)
-    # ✅ FIX 1: Added ForeignKey — was plain Integer, broke the relationship entirely
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     date       = Column(Date, nullable=False)
     food_name  = Column(String, nullable=False)
     quantity_g = Column(Float, nullable=False)
     is_custom  = Column(Boolean, default=False)
-
-    # ✅ FIX 2: Renamed to protein_g / carbs_g / fat_g to match FoodLogResponse schema
-    # (previously named protein/carbs/fat — caused "undefined" in the UI)
     calories   = Column(Float, default=0)
     protein_g  = Column(Float, default=0)
     carbs_g    = Column(Float, default=0)
     fat_g      = Column(Float, default=0)
-
-    # ✅ FIX 3: Added created_at — FoodLogResponse schema requires this field
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # ✅ FIX 4: Added back_populates — User.food_logs relationship was crashing on startup
+    # ✅ NEW: optional meal type — nullable so existing rows are unaffected
+    meal_type  = Column(String(20), nullable=True, default=None)
+
     user = relationship("User", back_populates="food_logs")
 
 
