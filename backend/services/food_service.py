@@ -24,17 +24,12 @@ def _clean_meal_type(mt):
 
 
 def _normalize_date(date_input) -> date:
-    """
-    Accept any date format and return a Python date object.
-    Supports: date object, YYYY-MM-DD, DD-MM-YYYY
-    """
     if isinstance(date_input, date):
         return date_input
 
     date_str = str(date_input).strip()
     logger.debug(f"[date] incoming: '{date_str}'")
 
-    # DD-MM-YYYY (user-facing format)
     if len(date_str) == 10 and date_str[2] == '-' and date_str[5] == '-':
         try:
             parsed = datetime.strptime(date_str, "%d-%m-%Y").date()
@@ -43,7 +38,6 @@ def _normalize_date(date_input) -> date:
         except ValueError:
             pass
 
-    # YYYY-MM-DD (ISO / FastAPI default)
     try:
         parsed = datetime.strptime(date_str, "%Y-%m-%d").date()
         logger.debug(f"[date] parsed YYYY-MM-DD → {parsed}")
@@ -117,7 +111,9 @@ def get_food_logs(db: Session, user_id: int, log_date) -> List[FoodLog]:
     return results
 
 
-def get_daily_nutrition_summary(db: Session, user_id: int, summary_date) -> DailyNutritionSummary:
+def get_daily_nutrition_summary(
+    db: Session, user_id: int, summary_date
+) -> DailyNutritionSummary:
     user = get_user_or_404(db, user_id)
     normalized = _normalize_date(summary_date)
     row = (
@@ -146,8 +142,10 @@ def get_daily_nutrition_summary(db: Session, user_id: int, summary_date) -> Dail
     )
 
 
-def get_weekly_nutrition_summary(db: Session, user_id: int, week_start) -> WeeklyNutritionSummary:
-    user = get_user_or_404(db, user_id)
+def get_weekly_nutrition_summary(
+    db: Session, user_id: int, week_start
+) -> WeeklyNutritionSummary:
+    user       = get_user_or_404(db, user_id)
     ws         = _normalize_date(week_start)
     week_end   = ws + timedelta(days=6)
     prev_start = ws - timedelta(days=7)
@@ -158,12 +156,16 @@ def get_weekly_nutrition_summary(db: Session, user_id: int, week_start) -> Weekl
             db.query(
                 func.coalesce(func.sum(FoodLog.calories),  0.0).label("cal"),
                 func.coalesce(func.sum(FoodLog.protein_g), 0.0).label("prot"),
-                func.count(FoodLog.id).label("entries"),
             )
-            .filter(FoodLog.user_id == user_id, FoodLog.date >= start, FoodLog.date <= end)
+            .filter(
+                FoodLog.user_id == user_id,
+                FoodLog.date >= start,
+                FoodLog.date <= end,
+            )
             .one()
         )
 
+    # Build per-day breakdown
     days = []
     for i in range(7):
         d = ws + timedelta(days=i)
@@ -185,7 +187,8 @@ def get_weekly_nutrition_summary(db: Session, user_id: int, week_start) -> Weekl
     this_week = _query_range(ws, week_end)
     prev_week = _query_range(prev_start, prev_end)
 
-    def _trend(a, b): return round(a - b, 1) if b != 0 else None
+    def _trend(a, b):
+        return round(a - b, 1) if b != 0 else None
 
     return WeeklyNutritionSummary(
         user_id=user_id,

@@ -6,7 +6,7 @@ Pydantic v2 request/response contracts.
 
 from __future__ import annotations
 import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 
@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
     goal: str
     target_weight: Optional[float] = None
     calorie_goal: Optional[int] = None
+    protein_goal: Optional[int] = None
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -31,6 +32,7 @@ class UserUpdate(BaseModel):
     goal: Optional[str] = None
     target_weight: Optional[float] = Field(None, gt=0)
     calorie_goal: Optional[int] = Field(None, gt=0)
+    protein_goal: Optional[int] = Field(None, gt=0)
 
 class UserResponse(UserCreate):
     model_config = ConfigDict(from_attributes=True)
@@ -82,6 +84,12 @@ class FoodLogCreate(BaseModel):
     date: datetime.date = Field(..., description="Date consumed (YYYY-MM-DD)")
     food_name: str
     quantity_g: float = Field(..., gt=0)
+    meal_type: Optional[str] = None
+    is_custom: Optional[bool] = False
+    calories: Optional[float] = None
+    protein: Optional[float] = None
+    carbs: Optional[float] = None
+    fat: Optional[float] = None
 
 
 class FoodLogResponse(BaseModel):
@@ -95,6 +103,7 @@ class FoodLogResponse(BaseModel):
     protein_g: float
     carbs_g: float
     fat_g: float
+    meal_type: Optional[str] = None
     created_at: datetime.datetime
 
 
@@ -116,9 +125,16 @@ class DailyNutritionSummary(BaseModel):
     food_entries: int
 
 
-    # ══════════════════════════════════════════════════════════════════════════════
-# WEEKLY NUTRITION SUMMARY (FIX)
 # ══════════════════════════════════════════════════════════════════════════════
+# WEEKLY NUTRITION SUMMARY
+# ══════════════════════════════════════════════════════════════════════════════
+
+class WeeklyDayNutrition(BaseModel):
+    date: str
+    label: str
+    calories: float
+    protein: float
+
 
 class WeeklyNutritionSummary(BaseModel):
     user_id: int
@@ -126,11 +142,13 @@ class WeeklyNutritionSummary(BaseModel):
     week_end: datetime.date
     total_calories: float
     total_protein_g: float
-    total_carbs_g: float
-    total_fat_g: float
-    avg_daily_calories: float
-    avg_daily_protein: float
-    days_tracked: int
+    prev_calories: float
+    prev_protein_g: float
+    calorie_trend: Optional[float]
+    protein_trend: Optional[float]
+    calorie_goal: Optional[int]
+    protein_goal: Optional[int]
+    days: List[WeeklyDayNutrition]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
