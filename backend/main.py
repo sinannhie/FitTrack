@@ -49,9 +49,14 @@ app = FastAPI(
 
 
 # ── CORS ─────────────────────────────────────────────────────────
+# MUST be added before any other middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://fit-track-ten-opal.vercel.app"],
+    allow_origins=[
+        "https://fit-track-ten-opal.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,8 +64,13 @@ app.add_middleware(
 
 
 # ── Middleware ───────────────────────────────────────────────────
+# NOTE: Added AFTER CORS so CORS headers are always applied first
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    # Skip logging for preflight OPTIONS requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     start = time.perf_counter()
     response = await call_next(request)
     duration_ms = round((time.perf_counter() - start) * 1000, 1)
@@ -93,7 +103,7 @@ app.include_router(users.router,       prefix=API_PREFIX)
 app.include_router(weight.router,      prefix=API_PREFIX)
 app.include_router(food.router,        prefix=API_PREFIX)
 app.include_router(workouts.router,    prefix=API_PREFIX)
-app.include_router(sessions_router,    prefix=API_PREFIX)   # ← new session-based routes
+app.include_router(sessions_router,    prefix=API_PREFIX)
 app.include_router(analytics.router,   prefix=API_PREFIX)
 
 
