@@ -79,3 +79,6 @@ export const getCalorieWeightCorrelation = (userId, periodDays = 30) =>
   })
 export const getWeeklySummary = (userId, numWeeks = 8) =>
   api.get(`/users/${userId}/analytics/weekly-summary`, { params: { num_weeks: numWeeks } })
+
+export const getWeeklyNutrition = (userId, weekStart) =>
+  api.get(`/users/${userId}/nutrition/weekly`, { params: { week_start: weekStart } })
