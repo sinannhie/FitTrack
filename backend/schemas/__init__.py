@@ -1,4 +1,4 @@
-=from schemas.schemas import (
+from schemas.schemas import (
     UserCreate, UserUpdate, UserResponse,
     WeightEntryCreate, WeightEntryResponse,
     WeightChartPoint, WeightHistoryResponse,
