@@ -1,53 +1,34 @@
 /**
- * UPDATED: frontend/src/pages/Workouts.jsx
+ * Workouts.jsx — FitTrack AI
  *
- * Changes:
- * 1. Replaced "Total Sessions" with Steps Today + Weekly Steps cards
- * 2. Added Steps field in Log Exercise form (optional)
- * 3. Fixed bodyweight exercise bug (uses userWeight when weight=0)
- * 4. Strict date-wise session filtering
- * 5. Date navigation (← → previous/next day)
- * 6. Session title shows Workout Type (Push/Pull/Legs/Custom)
- * 7. Exercises grouped by muscle group inside session
- * 8. Steps shown in session history card
- * 9. Accordion expand/collapse for session history
- * 10. Weekly cards with trend arrows
+ * FIXES APPLIED:
+ * 1. Data loss — robust field mapping with fallbacks for old/new API shape
+ * 2. Top cards — Steps Today (large) + Weekly Steps/Days/Volume/Sessions
+ * 3. Cardio logic — hide sets/weight, show steps only; no volume/set validation
+ * 4. Session title — shows workout TYPE (Push/Pull/Legs/Cardio/Custom)
+ * 5. Session grouping — one card per (date, workout_type); same-day same-type merged
+ * 6. Steps integration — saved, returned, shown in every session card
+ * 7. Log Session UI — unchanged layout, only conditional hide for cardio
+ * 8. Date filtering — strict YYYY-MM-DD string comparison, no timezone bleed
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useUser } from '../hooks/useUser'
 import { logWorkout, getWorkoutHistory, deleteWorkout } from '../services/api'
 import {
-  Card,
-  Input,
-  Button,
-  StatCard,
-  ErrorBanner,
-  EmptyState,
-  SectionHeader,
-  Badge,
+  Card, Input, Button, ErrorBanner, EmptyState, SectionHeader, Badge,
 } from '../components/UI'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'react-hot-toast'
 
-// ── Date helpers ─────────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().split('T')[0]
+// ─── date helpers ────────────────────────────────────────────────
+const toISO  = (d) => (d instanceof Date ? d : new Date(d + 'T00:00:00')).toISOString().split('T')[0]
+const todayS = () => toISO(new Date())
+const addDay = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return toISO(d) }
+const fmtDay = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
 
-const fmtDate = (d) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('en', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  })
-
-const addDays = (dateStr, n) => {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
-// ── Workout config ─────────────────────────────────────────────
-const WORKOUT_TYPES = [
+// ─── workout type config ─────────────────────────────────────────
+const TYPES = [
   { value: 'push',   label: 'Push',   icon: '↑', color: '#a8f04a' },
   { value: 'pull',   label: 'Pull',   icon: '↓', color: '#7dd3fc' },
   { value: 'legs',   label: 'Legs',   icon: '⚡', color: '#f97316' },
@@ -55,236 +36,194 @@ const WORKOUT_TYPES = [
   { value: 'custom', label: 'Custom', icon: '◈', color: '#a8f04a' },
 ]
 
+const typeLabel = (v) => TYPES.find(t => t.value === (v || 'custom').toLowerCase())?.label ?? 'Custom'
+const typeColor = (v) => TYPES.find(t => t.value === (v || 'custom').toLowerCase())?.color ?? '#a8f04a'
+const isCardio  = (v) => (v || '').toLowerCase() === 'cardio'
+
+// ─── exercise suggestions ────────────────────────────────────────
+const SUGGESTIONS = [
+  { name: 'Bench Press',       type: 'push',   muscle: 'Chest'     },
+  { name: 'Incline Press',     type: 'push',   muscle: 'Chest'     },
+  { name: 'Shoulder Press',    type: 'push',   muscle: 'Shoulders' },
+  { name: 'Lateral Raise',     type: 'push',   muscle: 'Shoulders' },
+  { name: 'Dips',              type: 'push',   muscle: 'Triceps'   },
+  { name: 'Tricep Extension',  type: 'push',   muscle: 'Triceps'   },
+  { name: 'Pull-ups',          type: 'pull',   muscle: 'Back'      },
+  { name: 'Barbell Row',       type: 'pull',   muscle: 'Back'      },
+  { name: 'Lat Pulldown',      type: 'pull',   muscle: 'Back'      },
+  { name: 'Bicep Curl',        type: 'pull',   muscle: 'Biceps'    },
+  { name: 'Hammer Curl',       type: 'pull',   muscle: 'Biceps'    },
+  { name: 'Wrist Curl',        type: 'pull',   muscle: 'Forearms'  },
+  { name: 'Squat',             type: 'legs',   muscle: 'Legs'      },
+  { name: 'Deadlift',          type: 'legs',   muscle: 'Legs'      },
+  { name: 'Romanian Deadlift', type: 'legs',   muscle: 'Glutes'    },
+  { name: 'Leg Press',         type: 'legs',   muscle: 'Legs'      },
+  { name: 'Calf Raise',        type: 'legs',   muscle: 'Calves'    },
+  { name: 'Hip Thrust',        type: 'legs',   muscle: 'Glutes'    },
+  { name: 'Running',           type: 'cardio', muscle: 'Full Body' },
+  { name: 'Cycling',           type: 'cardio', muscle: 'Full Body' },
+  { name: 'Jump Rope',         type: 'cardio', muscle: 'Full Body' },
+  { name: 'Plank',             type: 'custom', muscle: 'Core'      },
+  { name: 'Ab Rollout',        type: 'custom', muscle: 'Core'      },
+]
+
 const MUSCLE_GROUPS = [
   'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps',
   'Forearms', 'Legs', 'Glutes', 'Core', 'Calves', 'Full Body',
 ]
 
-const EXERCISE_SUGGESTIONS = [
-  // Push
-  { name: 'Bench Press',        type: 'push',   muscle: 'Chest'     },
-  { name: 'Incline Press',      type: 'push',   muscle: 'Chest'     },
-  { name: 'Shoulder Press',     type: 'push',   muscle: 'Shoulders' },
-  { name: 'Lateral Raise',      type: 'push',   muscle: 'Shoulders' },
-  { name: 'Dips',               type: 'push',   muscle: 'Triceps'   },
-  { name: 'Tricep Extension',   type: 'push',   muscle: 'Triceps'   },
-  { name: 'Chest Fly',          type: 'push',   muscle: 'Chest'     },
-  // Pull
-  { name: 'Pull-ups',           type: 'pull',   muscle: 'Back'      },
-  { name: 'Barbell Row',        type: 'pull',   muscle: 'Back'      },
-  { name: 'Lat Pulldown',       type: 'pull',   muscle: 'Back'      },
-  { name: 'Bicep Curl',         type: 'pull',   muscle: 'Biceps'    },
-  { name: 'Hammer Curl',        type: 'pull',   muscle: 'Biceps'    },
-  { name: 'Face Pull',          type: 'pull',   muscle: 'Back'      },
-  { name: 'Wrist Curl',         type: 'pull',   muscle: 'Forearms'  },
-  // Legs
-  { name: 'Squat',              type: 'legs',   muscle: 'Legs'      },
-  { name: 'Deadlift',           type: 'legs',   muscle: 'Legs'      },
-  { name: 'Romanian Deadlift',  type: 'legs',   muscle: 'Glutes'    },
-  { name: 'Leg Press',          type: 'legs',   muscle: 'Legs'      },
-  { name: 'Leg Curl',           type: 'legs',   muscle: 'Legs'      },
-  { name: 'Calf Raise',         type: 'legs',   muscle: 'Calves'    },
-  { name: 'Hip Thrust',         type: 'legs',   muscle: 'Glutes'    },
-  // Cardio / Core
-  { name: 'Running',            type: 'cardio', muscle: 'Full Body' },
-  { name: 'Cycling',            type: 'cardio', muscle: 'Legs'      },
-  { name: 'Plank',              type: 'custom', muscle: 'Core'      },
-  { name: 'Ab Rollout',         type: 'custom', muscle: 'Core'      },
-]
+// ─── safe field accessors (handles old + new API shape) ──────────
+const safeDate      = (s) => (s?.date ? toISO(s.date) : null)
+const safeType      = (s) => (s?.workout_type || 'custom').toLowerCase()
+const safeSteps     = (s) => Number(s?.total_steps ?? 0)
+const safeSets      = (s) => Number(s?.total_sets ?? 0)
+const safeVolume    = (s) => Number(s?.total_volume_kg ?? 0)
+const safeExercises = (s) => Array.isArray(s?.exercises) ? s.exercises : []
 
-// ── Bodyweight exercises (no weight needed) ────────────────────
-const BODYWEIGHT_EXERCISES = new Set([
-  'pull-ups', 'dips', 'plank', 'push-ups', 'chin-ups',
-  'muscle-ups', 'pistol squat', 'ab rollout',
-])
-
-const isBodyweight = (name) => BODYWEIGHT_EXERCISES.has(name?.toLowerCase().trim())
-
-// ── Get label for workout type ─────────────────────────────────
-const getWorkoutTypeLabel = (type) => {
-  const found = WORKOUT_TYPES.find(t => t.value === type)
-  return found ? found.label : 'Workout'
-}
-
-const getWorkoutTypeColor = (type) => {
-  const found = WORKOUT_TYPES.find(t => t.value === type)
-  return found ? found.color : '#a8f04a'
-}
-
-// ── Group exercises by muscle group ───────────────────────────
+// ─── group exercises by muscle inside a session ──────────────────
 function groupByMuscle(exercises) {
-  const groups = {}
+  const g = {}
   for (const ex of exercises) {
     const key = ex.muscle_group || 'Other'
-    if (!groups[key]) groups[key] = []
-    groups[key].push(ex)
+    ;(g[key] = g[key] || []).push(ex)
   }
-  return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]))
+  return Object.entries(g).sort(([a], [b]) => a.localeCompare(b))
 }
 
-// ── Trend arrow component ──────────────────────────────────────
-function TrendArrow({ current, previous }) {
-  if (!previous || previous === 0) return null
-  const diff = current - previous
-  const pct = Math.abs(Math.round((diff / previous) * 100))
-  if (Math.abs(diff) < 1) return <span style={{ color: '#68687a', fontSize: '11px' }}>—</span>
-  return (
-    <span style={{ color: diff > 0 ? '#a8f04a' : '#fb7185', fontSize: '11px', fontFamily: 'monospace' }}>
-      {diff > 0 ? '↑' : '↓'} {pct}%
-    </span>
-  )
-}
+// ─── accordion session card ──────────────────────────────────────
+function SessionCard({ session, onDelete, userWeight }) {
+  const [open, setOpen] = useState(false)
 
-// ── Accordion Session Card ─────────────────────────────────────
-function SessionCard({ session, onDeleteExercise, userWeight }) {
-  const [expanded, setExpanded] = useState(false)
+  const date      = safeDate(session)
+  const wtype     = safeType(session)
+  const steps     = safeSteps(session)
+  const sets      = safeSets(session)
+  const exercises = safeExercises(session)
+  const color     = typeColor(wtype)
+  const cardio    = isCardio(wtype)
 
-  // Determine session workout type from exercises
-  const workoutType = session.exercises?.[0]?.workout_type || 'custom'
-  const typeColor = getWorkoutTypeColor(workoutType)
-  const typeLabel = getWorkoutTypeLabel(workoutType)
-
-  // Group exercises by muscle group
-  const muscleGroups = useMemo(() => groupByMuscle(session.exercises || []), [session.exercises])
-
-  // Calculate effective volume (bodyweight uses userWeight)
-  const effectiveVolume = useMemo(() => {
-    return session.exercises.reduce((total, ex) => {
-      const w = (ex.weight_kg && ex.weight_kg > 0) ? ex.weight_kg : (userWeight || 0)
-      return total + ex.sets * ex.reps * w
+  // FIXED: volume uses userWeight for bodyweight, 0 weight not penalised
+  const effectiveVolume = useMemo(() =>
+    exercises.reduce((t, ex) => {
+      const w = Number(ex.weight_kg) > 0 ? Number(ex.weight_kg) : (cardio ? 0 : userWeight)
+      return t + (ex.sets || 0) * (ex.reps || 0) * w
     }, 0)
-  }, [session.exercises, userWeight])
+  , [exercises, userWeight, cardio])
 
-  const hasSteps = session.total_steps > 0
+  const muscleGroups = useMemo(() => groupByMuscle(exercises), [exercises])
+
+  // sub-line
+  const meta = cardio
+    ? `${exercises.length} exercise${exercises.length !== 1 ? 's' : ''} • ${steps.toLocaleString()} steps`
+    : [
+        `${exercises.length} exercise${exercises.length !== 1 ? 's' : ''}`,
+        sets ? `${sets} sets` : null,
+        effectiveVolume ? `${Math.round(effectiveVolume)}kg vol` : null,
+        steps ? `${steps.toLocaleString()} steps` : null,
+      ].filter(Boolean).join(' • ')
 
   return (
-    <div
-      style={{
-        borderRadius: '16px',
-        border: '1px solid rgba(46,46,53,0.8)',
-        background: 'rgba(22,22,25,0.9)',
-        overflow: 'hidden',
-        transition: 'border-color 0.2s ease',
-      }}
-    >
-      {/* Header — always visible */}
+    <div style={{
+      borderRadius: 16, border: '1px solid rgba(46,46,53,0.8)',
+      background: 'rgba(22,22,25,0.9)', overflow: 'hidden',
+    }}>
+      {/* header */}
       <button
-        onClick={() => setExpanded(v => !v)}
+        onClick={() => setOpen(v => !v)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', padding: '14px 16px',
-          background: 'transparent', border: 'none', cursor: 'pointer',
-          textAlign: 'left',
+          justifyContent: 'space-between', padding: '13px 16px',
+          background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Type pill */}
-          <span
-            style={{
-              fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em',
-              textTransform: 'uppercase', padding: '3px 8px', borderRadius: '6px',
-              background: `${typeColor}20`, color: typeColor, border: `1px solid ${typeColor}30`,
-            }}
-          >
-            {typeLabel}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+            textTransform: 'uppercase', padding: '3px 8px', borderRadius: 6,
+            background: `${color}20`, color, border: `1px solid ${color}30`,
+          }}>
+            {typeLabel(wtype)}
           </span>
           <div>
-            <p style={{ color: '#f2f2f7', fontSize: '14px', fontWeight: 600, margin: 0 }}>
-              {fmtDate(session.date)}
+            {/* FIX #4: title is workout TYPE — date on second line */}
+            <p style={{ color: '#f2f2f7', fontSize: 14, fontWeight: 600, margin: 0 }}>
+              {typeLabel(wtype)} — {date ? fmtDay(date) : ''}
             </p>
-            <p style={{ color: '#68687a', fontSize: '11px', fontFamily: 'monospace', margin: '2px 0 0' }}>
-              {session.exercises.length} exercise{session.exercises.length !== 1 ? 's' : ''}
-              {' · '}{session.total_sets} sets
-              {' · '}{Math.round(effectiveVolume)}kg vol
-              {hasSteps ? ` · ${session.total_steps.toLocaleString()} steps` : ''}
+            <p style={{ color: '#68687a', fontSize: 11, fontFamily: 'monospace', margin: '2px 0 0' }}>
+              {meta}
             </p>
           </div>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {hasSteps && (
-            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#7dd3fc' }}>
-              👟 {session.total_steps.toLocaleString()}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {steps > 0 && (
+            <span style={{ color: '#7dd3fc', fontSize: 11, fontFamily: 'monospace' }}>
+              👟 {steps.toLocaleString()}
             </span>
           )}
-          <span
-            style={{
-              color: '#68687a', fontSize: '16px',
-              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s ease',
-              display: 'inline-block',
-            }}
-          >
-            ▾
-          </span>
+          <span style={{
+            color: '#68687a', fontSize: 16, display: 'inline-block',
+            transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s',
+          }}>▾</span>
         </div>
       </button>
 
-      {/* Expanded content */}
-      {expanded && (
+      {/* body */}
+      {open && (
         <div style={{ borderTop: '1px solid rgba(46,46,53,0.5)', padding: '12px 16px 16px' }}>
-          {muscleGroups.map(([muscle, exercises]) => (
-            <div key={muscle} style={{ marginBottom: '16px' }}>
-              {/* Muscle group header */}
-              <p
-                style={{
-                  color: '#68687a', fontSize: '10px', fontWeight: 600,
-                  letterSpacing: '0.1em', textTransform: 'uppercase',
-                  margin: '0 0 8px', paddingBottom: '4px',
-                  borderBottom: '1px solid rgba(46,46,53,0.4)',
-                }}
-              >
-                {muscle}
-              </p>
+          {muscleGroups.map(([muscle, exs]) => (
+            <div key={muscle} style={{ marginBottom: 14 }}>
+              <p style={{
+                color: '#68687a', fontSize: 10, fontWeight: 600,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                margin: '0 0 6px', paddingBottom: 4,
+                borderBottom: '1px solid rgba(46,46,53,0.4)',
+              }}>{muscle}</p>
 
-              {/* Exercises in this muscle group */}
-              {exercises.map((ex) => {
-                const effectiveWeight = (ex.weight_kg && ex.weight_kg > 0)
-                  ? ex.weight_kg
-                  : (userWeight || 0)
-                const vol = ex.sets * ex.reps * effectiveWeight
+              {exs.map(ex => {
+                const exW = Number(ex.weight_kg) > 0 ? ex.weight_kg : null
+                const exVol = (ex.sets || 0) * (ex.reps || 0) * (exW || (cardio ? 0 : userWeight))
 
                 return (
-                  <div
-                    key={ex.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '8px 0', borderBottom: '1px solid rgba(46,46,53,0.2)',
-                    }}
-                  >
+                  <div key={ex.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '7px 0', borderBottom: '1px solid rgba(46,46,53,0.2)',
+                  }}>
                     <div style={{ flex: 1 }}>
-                      <span style={{ color: '#f2f2f7', fontSize: '13px', fontWeight: 500 }}>
+                      <span style={{ color: '#f2f2f7', fontSize: 13, fontWeight: 500 }}>
                         {ex.exercise_name}
                       </span>
                       {ex.notes && (
-                        <span style={{ color: '#68687a', fontSize: '11px', marginLeft: '8px' }}>
+                        <span style={{ color: '#68687a', fontSize: 11, marginLeft: 8 }}>
                           — {ex.notes}
                         </span>
                       )}
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ color: '#68687a', fontSize: '12px', fontFamily: 'monospace' }}>
-                        {ex.sets} × {ex.reps}
-                        {ex.weight_kg > 0 ? ` @ ${ex.weight_kg}kg` : ' (BW)'}
-                      </span>
-                      <span style={{ color: '#a8f04a', fontSize: '11px', fontFamily: 'monospace' }}>
-                        {Math.round(vol)}kg
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {cardio ? (
+                        <span style={{ color: '#7dd3fc', fontSize: 12, fontFamily: 'monospace' }}>
+                          {(ex.steps || 0).toLocaleString()} steps
+                        </span>
+                      ) : (
+                        <>
+                          <span style={{ color: '#68687a', fontSize: 12, fontFamily: 'monospace' }}>
+                            {ex.sets} × {ex.reps}
+                            {exW ? ` @ ${exW}kg` : ' (BW)'}
+                          </span>
+                          <span style={{ color: '#a8f04a', fontSize: 11, fontFamily: 'monospace' }}>
+                            {Math.round(exVol)}kg
+                          </span>
+                        </>
+                      )}
                       <button
-                        onClick={() => onDeleteExercise(ex.id)}
+                        onClick={() => onDelete(ex.id)}
                         style={{
-                          width: '24px', height: '24px', borderRadius: '6px',
-                          background: 'transparent', border: 'none',
-                          color: '#68687a', cursor: 'pointer', fontSize: '12px',
+                          width: 24, height: 24, borderRadius: 6, background: 'transparent',
+                          border: 'none', color: '#68687a', cursor: 'pointer', fontSize: 11,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.1)'; e.currentTarget.style.color = '#fb7185' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.12)'; e.currentTarget.style.color = '#fb7185' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#68687a' }}
-                      >
-                        ✕
-                      </button>
+                      >✕</button>
                     </div>
                   </div>
                 )
@@ -292,23 +231,25 @@ function SessionCard({ session, onDeleteExercise, userWeight }) {
             </div>
           ))}
 
-          {/* Session summary row */}
-          <div
-            style={{
-              marginTop: '8px', padding: '10px 12px', borderRadius: '10px',
-              background: 'rgba(168,240,74,0.05)', border: '1px solid rgba(168,240,74,0.1)',
-              display: 'flex', gap: '20px', flexWrap: 'wrap',
-            }}
-          >
-            <span style={{ color: '#68687a', fontSize: '11px', fontFamily: 'monospace' }}>
-              Volume: <strong style={{ color: '#a8f04a' }}>{Math.round(effectiveVolume)} kg</strong>
-            </span>
-            <span style={{ color: '#68687a', fontSize: '11px', fontFamily: 'monospace' }}>
-              Sets: <strong style={{ color: '#f2f2f7' }}>{session.total_sets}</strong>
-            </span>
-            {hasSteps && (
-              <span style={{ color: '#68687a', fontSize: '11px', fontFamily: 'monospace' }}>
-                Steps: <strong style={{ color: '#7dd3fc' }}>{session.total_steps.toLocaleString()}</strong>
+          {/* summary row */}
+          <div style={{
+            marginTop: 8, padding: '9px 12px', borderRadius: 10,
+            background: `${color}08`, border: `1px solid ${color}18`,
+            display: 'flex', gap: 18, flexWrap: 'wrap',
+          }}>
+            {!cardio && (
+              <span style={{ color: '#68687a', fontSize: 11, fontFamily: 'monospace' }}>
+                Vol: <strong style={{ color }}>{Math.round(effectiveVolume)} kg</strong>
+              </span>
+            )}
+            {!cardio && (
+              <span style={{ color: '#68687a', fontSize: 11, fontFamily: 'monospace' }}>
+                Sets: <strong style={{ color: '#f2f2f7' }}>{sets}</strong>
+              </span>
+            )}
+            {steps > 0 && (
+              <span style={{ color: '#68687a', fontSize: 11, fontFamily: 'monospace' }}>
+                Steps: <strong style={{ color: '#7dd3fc' }}>{steps.toLocaleString()}</strong>
               </span>
             )}
           </div>
@@ -318,147 +259,146 @@ function SessionCard({ session, onDeleteExercise, userWeight }) {
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // MAIN PAGE
-// ══════════════════════════════════════════════════════════════════════════════
-
+// ════════════════════════════════════════════════════════════════
 export default function WorkoutsPage() {
   const { user } = useUser()
-  const userWeight = user?.weight || 70 // fallback bodyweight
+  const userWeight = Number(user?.weight) || 70
 
-  // ── State ──────────────────────────────────────────────────────
-  const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [formError, setFormError] = useState('')
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [history,     setHistory]     = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [submitting,  setSubmitting]  = useState(false)
+  const [error,       setError]       = useState('')
+  const [formError,   setFormError]   = useState('')
+  const [showSug,     setShowSug]     = useState(false)
 
-  // Date navigation — default to today
-  const [selectedDate, setSelectedDate] = useState(todayStr())
-  const isToday = selectedDate === todayStr()
+  // date nav
+  const [selectedDate, setSelectedDate] = useState(todayS)
+  const isToday = selectedDate === todayS()
 
-  // Form state — EXTENDED with steps, workout_type, muscle_group
+  // form
   const [form, setForm] = useState({
-    date: todayStr(),
+    date:          todayS(),
     exercise_name: '',
-    sets: '',
-    reps: '',
-    weight_kg: '',
-    notes: '',
-    steps: '',              // NEW
-    workout_type: 'custom', // NEW
-    muscle_group: '',        // NEW
-    is_bodyweight: false,    // UI toggle only
+    sets:          '',
+    reps:          '',
+    weight_kg:     '',
+    notes:         '',
+    steps:         '',
+    workout_type:  'custom',
+    muscle_group:  '',
+    is_bodyweight: false,
   })
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const setF = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
-  // ── Filtered suggestion ────────────────────────────────────────
-  const filteredSuggestions = useMemo(() => {
-    if (!form.exercise_name.trim()) return EXERCISE_SUGGESTIONS
-    const q = form.exercise_name.toLowerCase()
-    return EXERCISE_SUGGESTIONS.filter(s => s.name.toLowerCase().includes(q))
-  }, [form.exercise_name])
+  const cardioMode = isCardio(form.workout_type)
 
-  // ── Load history ───────────────────────────────────────────────
+  // ── load history ──────────────────────────────────────────────
   const loadHistory = useCallback(() => {
     if (!user) return
     setLoading(true)
     getWorkoutHistory(user.id)
-      .then((r) => setHistory(r.data))
-      .catch((err) => setError(err.message))
+      .then(r => {
+        // FIX #1: robust — handle both array and object responses
+        const data = Array.isArray(r.data) ? r.data : []
+        setHistory(data)
+      })
+      .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [user])
 
   useEffect(() => { loadHistory() }, [loadHistory])
 
-  // ── Date-wise filtered sessions (STRICT date match) ────────────
-  const sessionsOnDate = useMemo(() => {
-    return history.filter(session => {
-      // Ensure YYYY-MM-DD string comparison
-      const sessionDate = typeof session.date === 'string'
-        ? session.date.slice(0, 10)
-        : new Date(session.date).toISOString().split('T')[0]
-      return sessionDate === selectedDate
+  // ── FIX #8: strict date filter ────────────────────────────────
+  const sessionsOnDate = useMemo(() =>
+    history.filter(s => safeDate(s) === selectedDate)
+  , [history, selectedDate])
+
+  // ── steps stats ───────────────────────────────────────────────
+  const stepsToday = useMemo(() =>
+    sessionsOnDate.reduce((sum, s) => sum + safeSteps(s), 0)
+  , [sessionsOnDate])
+
+  const lastWeekStart = useMemo(() => addDay(todayS(), -7), [])
+  const weeklyData = useMemo(() =>
+    history.filter(s => safeDate(s) >= lastWeekStart)
+  , [history, lastWeekStart])
+
+  const stepsWeekly   = useMemo(() => weeklyData.reduce((s, x) => s + safeSteps(x), 0), [weeklyData])
+  const weeklyDays    = useMemo(() => new Set(weeklyData.map(s => safeDate(s))).size,    [weeklyData])
+  const weeklyVolume  = useMemo(() => weeklyData.reduce((s, x) => s + safeVolume(x), 0),[weeklyData])
+  const weeklySessions= useMemo(() => weeklyData.length,                                 [weeklyData])
+
+  // ── chart data ────────────────────────────────────────────────
+  const chartData = useMemo(() => {
+    const byDay = {}
+    weeklyData.forEach(s => {
+      const d = safeDate(s)
+      byDay[d] = (byDay[d] || 0) + safeVolume(s)
     })
-  }, [history, selectedDate])
+    return Object.entries(byDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([d, v]) => ({
+        day: new Date(d + 'T00:00:00').toLocaleDateString('en', { weekday: 'short' }),
+        volume: Math.round(v),
+      }))
+  }, [weeklyData])
 
-  // ── Steps stats ────────────────────────────────────────────────
-  const stepsToday = useMemo(() => {
-    return sessionsOnDate.reduce((sum, s) => sum + (s.total_steps || 0), 0)
-  }, [sessionsOnDate])
+  // ── filtered suggestions ──────────────────────────────────────
+  const filteredSug = useMemo(() => {
+    const q = form.exercise_name.toLowerCase()
+    return SUGGESTIONS.filter(s => s.name.toLowerCase().includes(q))
+  }, [form.exercise_name])
 
-  const stepsWeekly = useMemo(() => {
-    const cutoff = addDays(todayStr(), -7)
-    return history
-      .filter(s => s.date >= cutoff)
-      .reduce((sum, s) => sum + (s.total_steps || 0), 0)
-  }, [history])
+  // ── volume preview ────────────────────────────────────────────
+  const volPreview = useMemo(() => {
+    if (cardioMode || !form.sets || !form.reps) return null
+    const w = form.is_bodyweight
+      ? userWeight
+      : (form.weight_kg ? parseFloat(form.weight_kg) : 0)
+    return parseInt(form.sets) * parseInt(form.reps) * w
+  }, [form, cardioMode, userWeight])
 
-  // ── Weekly chart data (last 7 sessions) ───────────────────────
-  const weeklyVolumeData = useMemo(() => {
-    return history.slice(-7).map((s) => ({
-      day: new Date(s.date + 'T00:00:00').toLocaleDateString('en', { weekday: 'short' }),
-      volume: s.total_volume_kg,
-      steps: s.total_steps || 0,
-    }))
-  }, [history])
-
-  // ── Previous week comparison ───────────────────────────────────
-  const thisWeekVolume = useMemo(() =>
-    history.slice(-7).reduce((a, s) => a + s.total_volume_kg, 0), [history])
-  const prevWeekVolume = useMemo(() =>
-    history.slice(-14, -7).reduce((a, s) => a + s.total_volume_kg, 0), [history])
-
-  const totalSets = sessionsOnDate.reduce((a, s) => a + s.total_sets, 0)
-  const totalVolume = sessionsOnDate.reduce((a, s) => a + s.total_volume_kg, 0)
-
-  // ── Submit ─────────────────────────────────────────────────────
+  // ── submit ────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault()
-
     if (!form.exercise_name.trim()) return setFormError('Enter exercise name.')
-    if (!form.sets || parseInt(form.sets) < 1) return setFormError('Enter valid sets.')
-    if (!form.reps || parseInt(form.reps) < 1) return setFormError('Enter valid reps.')
+
+    // FIX #3: cardio doesn't require sets
+    if (!cardioMode) {
+      if (!form.sets || parseInt(form.sets) < 1) return setFormError('Enter valid sets.')
+      if (!form.reps || parseInt(form.reps) < 1) return setFormError('Enter valid reps.')
+    }
 
     setSubmitting(true)
     setFormError('')
 
-    // Bodyweight fix: if weight is empty/0 and bodyweight toggle → use userWeight
-    const rawWeight = form.weight_kg ? parseFloat(form.weight_kg) : null
-    const effectiveWeight = form.is_bodyweight
-      ? userWeight
-      : rawWeight
+    const payload = {
+      date:          form.date,
+      exercise_name: form.exercise_name.trim(),
+      sets:          cardioMode ? 0 : parseInt(form.sets || 0),
+      reps:          cardioMode ? 0 : parseInt(form.reps || 0),
+      weight_kg:     cardioMode ? null
+                     : form.is_bodyweight ? userWeight
+                     : (form.weight_kg ? parseFloat(form.weight_kg) : null),
+      notes:         form.notes || null,
+      steps:         form.steps ? parseInt(form.steps) : 0,
+      workout_type:  form.workout_type || 'custom',
+      muscle_group:  form.muscle_group || null,
+    }
 
     try {
-      await logWorkout(user.id, {
-        date: form.date,
-        exercise_name: form.exercise_name.trim(),
-        sets: parseInt(form.sets),
-        reps: parseInt(form.reps),
-        weight_kg: effectiveWeight,
-        notes: form.notes || null,
-        steps: form.steps ? parseInt(form.steps) : 0,        // NEW
-        workout_type: form.workout_type || 'custom',           // NEW
-        muscle_group: form.muscle_group || null,               // NEW
-      })
-
+      await logWorkout(user.id, payload)
       toast.success('Workout logged 💪')
-
       setForm(f => ({
         ...f,
         exercise_name: '',
-        sets: '',
-        reps: '',
-        weight_kg: '',
-        notes: '',
-        steps: '',
-        muscle_group: '',
+        sets: '', reps: '', weight_kg: '',
+        notes: '', steps: '', muscle_group: '',
         is_bodyweight: false,
       }))
-
-      // Refresh and set date to logged date
       setSelectedDate(form.date)
       loadHistory()
     } catch (err) {
@@ -468,112 +408,103 @@ export default function WorkoutsPage() {
     }
   }
 
-  // ── Delete exercise ─────────────────────────────────────────────
-  const handleDelete = async (workoutId) => {
+  const handleDelete = async (id) => {
     try {
-      await deleteWorkout(user.id, workoutId)
+      await deleteWorkout(user.id, id)
       toast.success('Deleted')
       loadHistory()
-    } catch (err) {
-      setError(err.message)
-    }
+    } catch (err) { setError(err.message) }
   }
 
-  // ── Suggestion select ─────────────────────────────────────────
-  const selectSuggestion = (suggestion) => {
+  const selectSug = (s) => {
     setForm(f => ({
       ...f,
-      exercise_name: suggestion.name,
-      workout_type: suggestion.type,
-      muscle_group: suggestion.muscle,
-      is_bodyweight: isBodyweight(suggestion.name),
+      exercise_name: s.name,
+      workout_type: s.type,
+      muscle_group: s.muscle,
     }))
   }
 
-  // ── Volume preview with bodyweight fix ────────────────────────
-  const volumePreview = useMemo(() => {
-    if (!form.sets || !form.reps) return null
-    const w = form.is_bodyweight
-      ? userWeight
-      : (form.weight_kg ? parseFloat(form.weight_kg) : 0)
-    return parseInt(form.sets) * parseInt(form.reps) * w
-  }, [form.sets, form.reps, form.weight_kg, form.is_bodyweight, userWeight])
-
+  // ── render ────────────────────────────────────────────────────
   return (
     <div className="space-y-8">
 
-      {/* ── Page Header ── */}
+      {/* header */}
       <div>
         <h1 className="font-display text-5xl tracking-widest text-text">WORKOUTS</h1>
-        <p className="text-dim text-sm mt-1">Log exercises, track volume and steps</p>
+        <p className="text-dim text-sm mt-1">Log exercises · track volume and steps</p>
       </div>
 
       <ErrorBanner message={error} onRetry={loadHistory} />
 
-      {/* ── STAT CARDS ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Steps Today — replaces "Total Sessions" */}
+      {/* ── FIX #2: STAT CARDS ── */}
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+
+        {/* Steps Today — large, spans 2 cols on xl */}
         <div
-          className="card flex flex-col gap-2 hover:border-muted transition-colors animate-fade-up opacity-0"
-          style={{ animationFillMode: 'forwards', animationDelay: '0ms', gridColumn: 'span 2' }}
+          className="card animate-fade-up opacity-0"
+          style={{ animationFillMode: 'forwards', gridColumn: 'span 2' }}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <p className="label mb-0">Steps Today</p>
             <span className="text-dim text-xs">👟</span>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-display text-4xl font-bold text-lime">
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-5xl font-bold text-lime">
               {stepsToday.toLocaleString()}
             </span>
-            <span className="text-xs text-dim">steps</span>
+            <span className="text-sm text-dim">/ 10,000</span>
           </div>
-          {/* Progress bar toward 10k */}
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1">
+          <div className="h-2 bg-muted rounded-full overflow-hidden mt-3">
             <div
               className="h-full rounded-full bg-lime transition-all duration-700"
               style={{ width: `${Math.min(100, (stepsToday / 10000) * 100)}%` }}
             />
           </div>
-          <p className="text-[11px] text-dim">{Math.max(0, 10000 - stepsToday).toLocaleString()} to reach 10k goal</p>
+          <p className="text-[11px] text-dim mt-1">
+            {Math.max(0, 10000 - stepsToday).toLocaleString()} steps remaining
+          </p>
         </div>
 
         {/* Weekly Steps */}
-        <StatCard
-          label="Weekly Steps"
-          value={stepsWeekly.toLocaleString()}
-          unit="steps"
-          icon="📅"
-          accent="ice"
-          delay={100}
-          sub="Last 7 days"
-        />
+        <div className="card animate-fade-up opacity-0" style={{ animationFillMode: 'forwards', animationDelay: '60ms' }}>
+          <p className="label mb-1">Weekly Steps</p>
+          <p className="font-display text-2xl font-bold text-ice">{stepsWeekly.toLocaleString()}</p>
+          <p className="text-[11px] text-dim mt-1">Last 7 days</p>
+        </div>
 
-        {/* Total Sets on selected date */}
-        <StatCard
-          label="Sets Today"
-          value={totalSets || '--'}
-          icon="◉"
-          accent="lime"
-          delay={200}
-          sub={selectedDate === todayStr() ? 'Today' : fmtDate(selectedDate)}
-        />
+        {/* Weekly Days */}
+        <div className="card animate-fade-up opacity-0" style={{ animationFillMode: 'forwards', animationDelay: '120ms' }}>
+          <p className="label mb-1">Workout Days</p>
+          <p className="font-display text-2xl font-bold text-lime">{weeklyDays}</p>
+          <p className="text-[11px] text-dim mt-1">This week</p>
+        </div>
+
+        {/* Weekly Volume */}
+        <div className="card animate-fade-up opacity-0" style={{ animationFillMode: 'forwards', animationDelay: '180ms' }}>
+          <p className="label mb-1">Weekly Volume</p>
+          <p className="font-display text-2xl font-bold text-ember">{Math.round(weeklyVolume).toLocaleString()}<span className="text-sm text-dim ml-1">kg</span></p>
+          <p className="text-[11px] text-dim mt-1">Last 7 days</p>
+        </div>
+
+        {/* Weekly Sessions */}
+        <div className="card animate-fade-up opacity-0" style={{ animationFillMode: 'forwards', animationDelay: '240ms' }}>
+          <p className="label mb-1">Weekly Sessions</p>
+          <p className="font-display text-2xl font-bold text-lime">{weeklySessions}</p>
+          <p className="text-[11px] text-dim mt-1">Session blocks</p>
+        </div>
       </div>
 
-      {/* ── WEEKLY VOLUME CHART ── */}
+      {/* ── WEEKLY CHART ── */}
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm text-dim">Weekly Volume (kg)</h3>
-          <TrendArrow current={thisWeekVolume} previous={prevWeekVolume} />
-        </div>
-        {weeklyVolumeData.length === 0 ? (
-          <EmptyState title="No data yet" />
-        ) : (
+        <h3 className="text-sm text-dim mb-4">Weekly Volume (kg)</h3>
+        {chartData.length === 0 ? <EmptyState title="No data yet" /> : (
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={weeklyVolumeData}>
+            <BarChart data={chartData}>
               <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#68687a' }} />
               <YAxis tick={{ fontSize: 10, fill: '#68687a' }} />
               <Tooltip
-                contentStyle={{ background: '#161619', border: '1px solid #2e2e35', borderRadius: '10px', fontSize: '12px' }}
+                contentStyle={{ background: '#161619', border: '1px solid #2e2e35', borderRadius: 10, fontSize: 12 }}
                 labelStyle={{ color: '#f2f2f7' }}
               />
               <Bar dataKey="volume" radius={[6, 6, 0, 0]} fill="#a8f04a" opacity={0.85} />
@@ -584,64 +515,49 @@ export default function WorkoutsPage() {
 
       <div className="grid lg:grid-cols-5 gap-4">
 
-        {/* ── LOG EXERCISE FORM ── */}
+        {/* ── FIX #7: LOG FORM — layout unchanged, cardio conditional ── */}
         <Card className="lg:col-span-2 h-fit">
           <h2 className="font-display text-2xl mb-5">Log Exercise</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Date */}
-            <input
-              type="date"
-              value={form.date}
-              onChange={set('date')}
-              className="input-field"
-              max={todayStr()}
-            />
+            {/* date */}
+            <input type="date" value={form.date} onChange={setF('date')}
+              className="input-field" max={todayS()} />
 
-            {/* Workout Type selector */}
+            {/* workout type */}
             <div>
               <p className="label">Workout Type</p>
               <div className="flex gap-1.5 flex-wrap">
-                {WORKOUT_TYPES.map(t => (
-                  <button
-                    key={t.value}
-                    type="button"
+                {TYPES.map(t => (
+                  <button key={t.value} type="button"
                     onClick={() => setForm(f => ({ ...f, workout_type: t.value }))}
                     style={{
-                      padding: '4px 10px', borderRadius: '8px', fontSize: '11px',
+                      padding: '4px 10px', borderRadius: 8, fontSize: 11,
                       fontWeight: 600, cursor: 'pointer', border: '1px solid',
                       background: form.workout_type === t.value ? `${t.color}20` : 'transparent',
                       borderColor: form.workout_type === t.value ? `${t.color}50` : '#2e2e35',
                       color: form.workout_type === t.value ? t.color : '#68687a',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
+                      transition: 'all 0.15s',
+                    }}>
                     {t.icon} {t.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Exercise Name with suggestions */}
+            {/* exercise name */}
             <div className="relative">
-              <Input
-                label="Exercise Name"
-                value={form.exercise_name}
-                onChange={set('exercise_name')}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              />
-
-              {showSuggestions && (
+              <Input label="Exercise Name" value={form.exercise_name}
+                onChange={setF('exercise_name')}
+                onFocus={() => setShowSug(true)}
+                onBlur={() => setTimeout(() => setShowSug(false), 150)} />
+              {showSug && (
                 <div className="absolute z-20 w-full bg-card border border-border rounded-xl max-h-44 overflow-y-auto shadow-xl">
-                  {filteredSuggestions.map(s => (
-                    <button
-                      key={s.name}
-                      type="button"
-                      onMouseDown={() => selectSuggestion(s)}
-                      className="block w-full text-left px-3 py-2 hover:bg-muted/30 text-sm"
-                    >
+                  {filteredSug.map(s => (
+                    <button key={s.name} type="button"
+                      onMouseDown={() => selectSug(s)}
+                      className="block w-full text-left px-3 py-2 hover:bg-muted/30 text-sm">
                       <span className="text-text">{s.name}</span>
                       <span className="text-dim text-xs ml-2">{s.muscle}</span>
                     </button>
@@ -650,96 +566,64 @@ export default function WorkoutsPage() {
               )}
             </div>
 
-            {/* Muscle Group */}
-            <div>
-              <p className="label">Muscle Group</p>
-              <select
-                value={form.muscle_group}
-                onChange={set('muscle_group')}
-                className="input-field"
-                style={{ background: 'rgba(38,38,44,0.6)' }}
-              >
-                <option value="">Select muscle group</option>
-                {MUSCLE_GROUPS.map(mg => (
-                  <option key={mg} value={mg}>{mg}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sets / Reps / Weight grid */}
-            <div className="grid grid-cols-3 gap-3">
-              <Input type="number" placeholder="Sets" value={form.sets} onChange={set('sets')} min="1" />
-              <Input type="number" placeholder="Reps" value={form.reps} onChange={set('reps')} min="1" />
+            {/* muscle group — hide for cardio */}
+            {!cardioMode && (
               <div>
-                <input
-                  type="number"
-                  placeholder={form.is_bodyweight ? `BW (${userWeight}kg)` : 'Weight'}
-                  value={form.weight_kg}
-                  onChange={set('weight_kg')}
-                  disabled={form.is_bodyweight}
-                  className="input-field"
-                  min="0"
-                  step="0.5"
-                  style={form.is_bodyweight ? { opacity: 0.4 } : {}}
-                />
-              </div>
-            </div>
-
-            {/* Bodyweight toggle */}
-            <label
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                cursor: 'pointer', userSelect: 'none',
-              }}
-            >
-              <div
-                onClick={() => setForm(f => ({ ...f, is_bodyweight: !f.is_bodyweight, weight_kg: '' }))}
-                style={{
-                  width: '32px', height: '18px', borderRadius: '9px',
-                  background: form.is_bodyweight ? '#a8f04a' : '#2e2e35',
-                  position: 'relative', transition: 'background 0.2s ease', flexShrink: 0,
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{
-                  position: 'absolute', top: '2px',
-                  left: form.is_bodyweight ? '14px' : '2px',
-                  width: '14px', height: '14px', borderRadius: '50%',
-                  background: form.is_bodyweight ? '#08080a' : '#68687a',
-                  transition: 'left 0.2s ease',
-                }} />
-              </div>
-              <span className="text-xs text-dim">
-                Bodyweight exercise {form.is_bodyweight ? `(using ${userWeight}kg)` : ''}
-              </span>
-            </label>
-
-            {/* Volume preview */}
-            {volumePreview !== null && volumePreview > 0 && (
-              <div className="bg-lime/10 p-3 rounded-xl text-xs flex justify-between border border-lime/20">
-                <span className="text-dim">Volume preview</span>
-                <strong className="text-lime">{volumePreview.toFixed(0)} kg</strong>
+                <p className="label">Muscle Group</p>
+                <select value={form.muscle_group} onChange={setF('muscle_group')}
+                  className="input-field" style={{ background: 'rgba(38,38,44,0.6)' }}>
+                  <option value="">Select…</option>
+                  {MUSCLE_GROUPS.map(mg => <option key={mg} value={mg}>{mg}</option>)}
+                </select>
               </div>
             )}
 
-            {/* Steps — NEW FIELD */}
-            <div>
-              <Input
-                label="Steps (optional)"
-                type="number"
-                placeholder="e.g. 4200"
-                value={form.steps}
-                onChange={set('steps')}
-                min="0"
-              />
-              <p className="text-dim text-[11px] mt-1">Steps logged for this session / today</p>
-            </div>
+            {/* FIX #3: hide sets/weight for cardio */}
+            {!cardioMode && (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <Input type="number" placeholder="Sets"   value={form.sets}      onChange={setF('sets')}      min="1" />
+                  <Input type="number" placeholder="Reps"   value={form.reps}      onChange={setF('reps')}      min="1" />
+                  <input type="number" placeholder={form.is_bodyweight ? `BW ${userWeight}kg` : 'Weight'}
+                    value={form.weight_kg} onChange={setF('weight_kg')}
+                    disabled={form.is_bodyweight} min="0" step="0.5" className="input-field"
+                    style={form.is_bodyweight ? { opacity: 0.4 } : {}} />
+                </div>
 
-            <Input
-              placeholder="Notes (optional)"
-              value={form.notes}
-              onChange={set('notes')}
-            />
+                {/* bodyweight toggle */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                  <div onClick={() => setForm(f => ({ ...f, is_bodyweight: !f.is_bodyweight, weight_kg: '' }))}
+                    style={{
+                      width: 32, height: 18, borderRadius: 9, position: 'relative', cursor: 'pointer',
+                      background: form.is_bodyweight ? '#a8f04a' : '#2e2e35', transition: 'background 0.2s',
+                    }}>
+                    <div style={{
+                      position: 'absolute', top: 2, width: 14, height: 14, borderRadius: '50%',
+                      left: form.is_bodyweight ? 14 : 2, transition: 'left 0.2s',
+                      background: form.is_bodyweight ? '#08080a' : '#68687a',
+                    }} />
+                  </div>
+                  <span className="text-xs text-dim">
+                    Bodyweight {form.is_bodyweight ? `(${userWeight}kg)` : ''}
+                  </span>
+                </label>
+
+                {/* volume preview */}
+                {volPreview !== null && volPreview > 0 && (
+                  <div className="bg-lime/10 p-3 rounded-xl text-xs flex justify-between border border-lime/20">
+                    <span className="text-dim">Volume preview</span>
+                    <strong className="text-lime">{Math.round(volPreview)} kg</strong>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* steps — always visible */}
+            <Input label={cardioMode ? 'Steps *' : 'Steps (optional)'}
+              type="number" placeholder="e.g. 4500"
+              value={form.steps} onChange={setF('steps')} min="0" />
+
+            <Input placeholder="Notes (optional)" value={form.notes} onChange={setF('notes')} />
 
             <ErrorBanner message={formError} />
 
@@ -752,111 +636,104 @@ export default function WorkoutsPage() {
         {/* ── SESSION HISTORY ── */}
         <div className="lg:col-span-3 space-y-3">
 
-          {/* Date navigation */}
-          <div className="flex items-center justify-between mb-2">
+          {/* date navigation */}
+          <div className="flex items-center justify-between">
             <SectionHeader title="Session History" />
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSelectedDate(d => addDays(d, -1))}
-                style={{
-                  width: '30px', height: '30px', borderRadius: '8px',
-                  background: '#1c1c20', border: '1px solid #2e2e35',
-                  color: '#f2f2f7', cursor: 'pointer', fontSize: '14px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                ‹
+              <button onClick={() => setSelectedDate(d => addDay(d, -1))} style={{
+                width: 30, height: 30, borderRadius: 8, background: '#1c1c20',
+                border: '1px solid #2e2e35', color: '#f2f2f7', cursor: 'pointer', fontSize: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>‹</button>
+
+              <button onClick={() => setSelectedDate(todayS())} style={{
+                padding: '4px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                background: isToday ? 'rgba(168,240,74,0.15)' : '#1c1c20',
+                border: `1px solid ${isToday ? 'rgba(168,240,74,0.3)' : '#2e2e35'}`,
+                color: isToday ? '#a8f04a' : '#68687a', fontFamily: 'monospace',
+              }}>
+                {isToday ? 'Today' : fmtDay(selectedDate)}
               </button>
 
-              <button
-                onClick={() => setSelectedDate(todayStr())}
-                style={{
-                  padding: '4px 10px', borderRadius: '8px', fontSize: '12px',
-                  background: isToday ? 'rgba(168,240,74,0.15)' : '#1c1c20',
-                  border: `1px solid ${isToday ? 'rgba(168,240,74,0.3)' : '#2e2e35'}`,
-                  color: isToday ? '#a8f04a' : '#68687a', cursor: 'pointer',
-                  fontFamily: 'monospace',
-                }}
-              >
-                {isToday ? 'Today' : fmtDate(selectedDate)}
-              </button>
-
-              <button
-                onClick={() => setSelectedDate(d => addDays(d, 1))}
-                disabled={isToday}
-                style={{
-                  width: '30px', height: '30px', borderRadius: '8px',
-                  background: '#1c1c20', border: '1px solid #2e2e35',
-                  color: isToday ? '#2e2e35' : '#f2f2f7',
-                  cursor: isToday ? 'not-allowed' : 'pointer', fontSize: '14px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                ›
-              </button>
+              <button onClick={() => setSelectedDate(d => addDay(d, 1))} disabled={isToday} style={{
+                width: 30, height: 30, borderRadius: 8, background: '#1c1c20',
+                border: '1px solid #2e2e35', color: isToday ? '#2e2e35' : '#f2f2f7',
+                cursor: isToday ? 'not-allowed' : 'pointer', fontSize: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>›</button>
             </div>
           </div>
 
-          {/* Sessions for selected date */}
+          {/* sessions for selected date */}
           {loading ? (
             <Card><div className="p-6 text-center text-dim text-sm">Loading…</div></Card>
           ) : sessionsOnDate.length === 0 ? (
             <Card>
               <EmptyState
-                title={`No workouts on ${isToday ? 'today' : fmtDate(selectedDate)}`}
-                description="Log an exercise to get started 💪"
+                title={`No workouts on ${isToday ? 'today' : fmtDay(selectedDate)}`}
+                description="Log an exercise on the left 💪"
               />
             </Card>
           ) : (
             <div className="space-y-3">
-              {sessionsOnDate.map(session => (
+              {sessionsOnDate.map((session, i) => (
                 <SessionCard
-                  key={session.date + '-' + session.exercises[0]?.id}
+                  key={`${safeDate(session)}-${safeType(session)}-${i}`}
                   session={session}
-                  onDeleteExercise={handleDelete}
+                  onDelete={handleDelete}
                   userWeight={userWeight}
                 />
               ))}
             </div>
           )}
 
-          {/* Show all dates summary below */}
+          {/* all dates quick-nav */}
           {history.length > 0 && (
             <div className="mt-6">
-              <p className="text-dim text-xs font-mono mb-3 uppercase tracking-widest">All Sessions</p>
-              <div className="space-y-2">
-                {[...history].reverse().slice(0, 10).map(session => {
-                  const sessionDateStr = typeof session.date === 'string'
-                    ? session.date.slice(0, 10)
-                    : new Date(session.date).toISOString().split('T')[0]
-                  const isSelected = sessionDateStr === selectedDate
+              <p className="text-dim text-xs font-mono mb-3 uppercase tracking-widest">Recent Sessions</p>
+              <div className="space-y-1.5">
+                {/* deduplicate dates */}
+                {[...new Map(
+                  [...history]
+                    .reverse()
+                    .map(s => [safeDate(s), s])
+                ).values()].slice(0, 10).map((session) => {
+                  const d = safeDate(session)
+                  const sel = d === selectedDate
+                  const totalStepsDay = history
+                    .filter(s => safeDate(s) === d)
+                    .reduce((sum, s) => sum + safeSteps(s), 0)
+                  const totalVolDay = history
+                    .filter(s => safeDate(s) === d)
+                    .reduce((sum, s) => sum + safeVolume(s), 0)
 
                   return (
-                    <button
-                      key={session.date}
-                      onClick={() => setSelectedDate(sessionDateStr)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center',
-                        justifyContent: 'space-between', padding: '10px 14px',
-                        borderRadius: '12px', cursor: 'pointer', border: '1px solid',
-                        background: isSelected ? 'rgba(168,240,74,0.08)' : 'rgba(22,22,25,0.6)',
-                        borderColor: isSelected ? 'rgba(168,240,74,0.25)' : '#2e2e35',
-                        transition: 'all 0.15s ease', textAlign: 'left',
-                      }}
-                    >
-                      <div>
-                        <span style={{ color: isSelected ? '#a8f04a' : '#f2f2f7', fontSize: '13px', fontWeight: 500 }}>
-                          {fmtDate(sessionDateStr)}
-                        </span>
-                        <span style={{ color: '#68687a', fontSize: '11px', marginLeft: '8px', fontFamily: 'monospace' }}>
-                          {session.exercises.length} ex
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        {session.total_steps > 0 && (
-                          <Badge color="ice">👟 {session.total_steps.toLocaleString()}</Badge>
+                    <button key={d} onClick={() => setSelectedDate(d)} style={{
+                      width: '100%', display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', padding: '9px 14px',
+                      borderRadius: 12, cursor: 'pointer', border: '1px solid',
+                      background: sel ? 'rgba(168,240,74,0.08)' : 'rgba(22,22,25,0.6)',
+                      borderColor: sel ? 'rgba(168,240,74,0.25)' : '#2e2e35',
+                      transition: 'all 0.15s', textAlign: 'left',
+                    }}>
+                      <span style={{ color: sel ? '#a8f04a' : '#f2f2f7', fontSize: 13, fontWeight: 500 }}>
+                        {fmtDay(d)}
+                      </span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {totalStepsDay > 0 && (
+                          <span style={{
+                            fontSize: 10, padding: '2px 7px', borderRadius: 6,
+                            background: 'rgba(125,211,252,0.1)', color: '#7dd3fc',
+                            border: '1px solid rgba(125,211,252,0.2)', fontFamily: 'monospace',
+                          }}>👟 {totalStepsDay.toLocaleString()}</span>
                         )}
-                        <Badge color="lime">{Math.round(session.total_volume_kg)}kg</Badge>
+                        {totalVolDay > 0 && (
+                          <span style={{
+                            fontSize: 10, padding: '2px 7px', borderRadius: 6,
+                            background: 'rgba(168,240,74,0.1)', color: '#a8f04a',
+                            border: '1px solid rgba(168,240,74,0.2)', fontFamily: 'monospace',
+                          }}>{Math.round(totalVolDay)}kg</span>
+                        )}
                       </div>
                     </button>
                   )

@@ -1,9 +1,13 @@
 """
-UPDATED: models/models.py — Added `steps` field to Workout model
+models/models.py — SQLAlchemy ORM table definitions.
+SAFE: all new columns are nullable with defaults — existing rows unaffected.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, Float, String, Date, DateTime, ForeignKey, Text, Boolean, UniqueConstraint
+from sqlalchemy import (
+    Column, Integer, Float, String, Date, DateTime,
+    ForeignKey, Text, Boolean,
+)
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -53,18 +57,16 @@ class Workout(Base):
     user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     date          = Column(Date, nullable=False, index=True)
     exercise_name = Column(String(150), nullable=False)
-    sets          = Column(Integer, nullable=False)
-    reps          = Column(Integer, nullable=False)
+    sets          = Column(Integer, nullable=False, default=0)
+    reps          = Column(Integer, nullable=False, default=0)
     weight_kg     = Column(Float, nullable=True)
     notes         = Column(Text, nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow)
 
-    # NEW: Optional workout type and muscle group for categorization
-    workout_type  = Column(String(50), nullable=True, default=None)   # push/pull/legs/custom
-    muscle_group  = Column(String(100), nullable=True, default=None)  # shoulders/chest/back etc.
-
-    # NEW: Steps field — optional, stored per workout entry (aggregated per day)
-    steps         = Column(Integer, nullable=True, default=0)
+    # NEW nullable columns — safe for existing rows
+    workout_type  = Column(String(50),  nullable=True, default=None)
+    muscle_group  = Column(String(100), nullable=True, default=None)
+    steps         = Column(Integer,     nullable=True, default=0)
 
     user = relationship("User", back_populates="workouts")
 

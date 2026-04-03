@@ -1,13 +1,12 @@
 """
-UPDATED: services/workout_service.py
-Changes:
-- Added steps aggregation in get_workout_history
-- WorkoutSessionSummary now includes total_steps
+services/workout_service.py
+Groups sessions by (date, workout_type) so one card per type per day.
+Fully backward compatible — old rows with NULL workout_type are grouped as 'custom'.
 """
 
 from collections import defaultdict
 from datetime import date
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import asc
 from fastapi import HTTPException, status
@@ -19,10 +18,20 @@ from utils.logger import logger
 
 
 def log_workout(db: Session, user_id: int, payload: WorkoutCreate) -> Workout:
-
     get_user_or_404(db, user_id)
 
-    workout = Workout(user_id=user_id, **payload.model_dump())
+    workout = Workout(
+        user_id=user_id,
+        date=payload.date,
+        exercise_name=payload.exercise_name,
+        sets=payload.sets or 0,
+        reps=payload.reps or 0,
+        weight_kg=payload.weight_kg,
+        notes=payload.notes,
+        steps=payload.steps or 0,
+        workout_type=payload.workout_type or "custom",
+        muscle_group=payload.muscle_group,
+    )
 
     db.add(workout)
     db.commit()
@@ -30,10 +39,8 @@ def log_workout(db: Session, user_id: int, payload: WorkoutCreate) -> Workout:
 
     logger.info(
         f"Workout logged user={user_id} ex={payload.exercise_name} "
-        f"sets={payload.sets} reps={payload.reps} weight={payload.weight_kg}kg "
-        f"steps={payload.steps}"
+        f"type={payload.workout_type} steps={payload.steps}"
     )
-
     return workout
 
 
@@ -54,34 +61,36 @@ def get_workout_history(
 
     if start_date:
         query = query.filter(Workout.date >= start_date)
-
     if end_date:
         query = query.filter(Workout.date <= end_date)
 
     rows = query.all()
 
-    by_date: dict[date, List[Workout]] = defaultdict(list)
-
+    # Group by (date, workout_type) — old NULL rows → 'custom'
+    by_key: dict[Tuple[date, str], List[Workout]] = defaultdict(list)
     for w in rows:
-        by_date[w.date].append(w)
+        wtype = (w.workout_type or "custom").lower().strip()
+        by_key[(w.date, wtype)].append(w)
 
     sessions = []
+    for (session_date, wtype) in sorted(by_key.keys()):
+        exercises = by_key[(session_date, wtype)]
 
-    for session_date in sorted(by_date):
-        exercises = by_date[session_date]
-
-        total_sets = sum(e.sets for e in exercises)
-        total_volume = sum(e.sets * e.reps * (e.weight_kg or 0.0) for e in exercises)
-        # NEW: aggregate steps — take max steps value for the day (steps logged per session, not per exercise)
-        total_steps = sum((e.steps or 0) for e in exercises)
+        total_sets   = sum(e.sets or 0 for e in exercises)
+        total_volume = sum(
+            (e.sets or 0) * (e.reps or 0) * (e.weight_kg or 0.0)
+            for e in exercises
+        )
+        total_steps = sum(e.steps or 0 for e in exercises)
 
         sessions.append(
             WorkoutSessionSummary(
                 date=session_date,
+                workout_type=wtype,
                 exercises=[WorkoutResponse.model_validate(e) for e in exercises],
                 total_sets=total_sets,
                 total_volume_kg=round(total_volume, 2),
-                total_steps=total_steps,  # NEW
+                total_steps=total_steps,
             )
         )
 
@@ -89,7 +98,6 @@ def get_workout_history(
 
 
 def delete_workout(db: Session, user_id: int, workout_id: int):
-
     workout = (
         db.query(Workout)
         .filter(Workout.id == workout_id, Workout.user_id == user_id)
@@ -104,8 +112,5 @@ def delete_workout(db: Session, user_id: int, workout_id: int):
 
     db.delete(workout)
     db.commit()
-
     logger.info(f"Deleted workout id={workout_id} user={user_id}")
-
     return {"detail": f"Workout {workout_id} deleted"}
-    

@@ -1,5 +1,6 @@
 """
-UPDATED: schemas/schemas.py — Added steps, workout_type, muscle_group to WorkoutCreate/Response
+schemas/schemas.py — Pydantic v2 request/response contracts.
+SAFE: WorkoutCreate/Response extended with optional fields — old clients unaffected.
 """
 
 from __future__ import annotations
@@ -8,9 +9,9 @@ from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field, ConfigDict
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 # USER
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 
 class UserCreate(BaseModel):
     name: str
@@ -38,30 +39,35 @@ class UserResponse(UserCreate):
     created_at: datetime.datetime
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 # WEIGHT TRACKING
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 
 class WeightEntryCreate(BaseModel):
-    date:      datetime.date = Field(..., description="Measurement date (YYYY-MM-DD)")
+    date:      datetime.date = Field(..., description="YYYY-MM-DD")
     weight_kg: float         = Field(..., gt=0, lt=500)
 
 class WeightEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; user_id: int; date: datetime.date; weight_kg: float; created_at: datetime.datetime
+    id: int
+    user_id: int
+    date: datetime.date
+    weight_kg: float
+    created_at: datetime.datetime
 
 class WeightChartPoint(BaseModel):
-    date: datetime.date; weight_kg: float
+    date: datetime.date
+    weight_kg: float
 
 class WeightHistoryResponse(BaseModel):
-    user_id: int; total_entries: int; entries: List[WeightChartPoint]
+    user_id: int
+    total_entries: int
+    entries: List[WeightChartPoint]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 # FOOD TRACKING
-# ══════════════════════════════════════════════════════════════════════════════
-
-VALID_MEAL_TYPES = {'breakfast', 'lunch', 'snack', 'dinner'}
+# ══════════════════════════════════════════════════════════════════
 
 class FoodDBItem(BaseModel):
     name: str
@@ -70,18 +76,16 @@ class FoodDBItem(BaseModel):
     carbs_per_100g:    float
     fat_per_100g:      float
 
-
 class FoodLogCreate(BaseModel):
-    date:       datetime.date = Field(..., description="Date consumed (YYYY-MM-DD)")
+    date:       datetime.date = Field(..., description="YYYY-MM-DD")
     food_name:  str
     quantity_g: float         = Field(..., gt=0)
-    is_custom: bool           = False
-    calories:  Optional[float] = Field(None, ge=0)
-    protein:   Optional[float] = Field(None, ge=0)
-    carbs:     Optional[float] = Field(None, ge=0)
-    fat:       Optional[float] = Field(None, ge=0)
-    meal_type: Optional[str] = None
-
+    is_custom:  bool          = False
+    calories:   Optional[float] = Field(None, ge=0)
+    protein:    Optional[float] = Field(None, ge=0)
+    carbs:      Optional[float] = Field(None, ge=0)
+    fat:        Optional[float] = Field(None, ge=0)
+    meal_type:  Optional[str]   = None
 
 class FoodLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -99,30 +103,27 @@ class FoodLogResponse(BaseModel):
     created_at: datetime.datetime
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 # DAILY NUTRITION SUMMARY
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 
 class DailyNutritionSummary(BaseModel):
-    user_id:          int
-    date:             datetime.date
-    total_calories:   float
-    total_protein_g:  float
-    total_carbs_g:    float
-    total_fat_g:      float
-    calorie_goal:     Optional[int]
-    protein_goal:     Optional[int]
+    user_id:           int
+    date:              datetime.date
+    total_calories:    float
+    total_protein_g:   float
+    total_carbs_g:     float
+    total_fat_g:       float
+    calorie_goal:      Optional[int]
+    protein_goal:      Optional[int]
     calorie_remaining: Optional[float]
     protein_remaining: Optional[float]
-    food_entries:     int
+    food_entries:      int
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 # WEEKLY NUTRITION SUMMARY
-# ══════════════════════════════════════════════════════════════════════════════
-
-class WeeklyDayEntry(BaseModel):
-    date: str; label: str; calories: float; protein: float
+# ══════════════════════════════════════════════════════════════════
 
 class WeeklyNutritionSummary(BaseModel):
     user_id:         int
@@ -139,46 +140,55 @@ class WeeklyNutritionSummary(BaseModel):
     days:            List[Dict[str, Any]]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# WORKOUT TRACKING — UPDATED with steps, workout_type, muscle_group
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
+# WORKOUT TRACKING
+# New optional fields: steps, workout_type, muscle_group
+# sets/reps default to 0 so cardio entries are valid
+# ══════════════════════════════════════════════════════════════════
 
 class WorkoutCreate(BaseModel):
-    date:          datetime.date = Field(..., description="Workout date (YYYY-MM-DD)")
-    exercise_name: str           = Field(..., min_length=1, max_length=150)
-    sets:          int           = Field(..., gt=0)
-    reps:          int           = Field(..., gt=0)
+    date:          datetime.date   = Field(..., description="YYYY-MM-DD")
+    exercise_name: str             = Field(..., min_length=1, max_length=150)
+    sets:          int             = Field(default=0, ge=0)   # 0 OK for cardio
+    reps:          int             = Field(default=0, ge=0)   # 0 OK for cardio
     weight_kg:     Optional[float] = Field(None, ge=0)
     notes:         Optional[str]   = None
-    # NEW fields
-    steps:         Optional[int]   = Field(None, ge=0)          # steps logged with this entry
-    workout_type:  Optional[str]   = None                        # push/pull/legs/cardio/custom
-    muscle_group:  Optional[str]   = None                        # shoulders/chest/back/legs/arms etc.
+    # NEW — all optional, backward compatible
+    steps:         Optional[int]   = Field(None, ge=0)
+    workout_type:  Optional[str]   = None   # push/pull/legs/cardio/custom
+    muscle_group:  Optional[str]   = None
 
 class WorkoutResponse(WorkoutCreate):
     model_config = ConfigDict(from_attributes=True)
-    id: int; user_id: int; created_at: datetime.datetime
+    id:         int
+    user_id:    int
+    created_at: datetime.datetime
 
 class WorkoutSessionSummary(BaseModel):
+    """
+    One card per (date, workout_type) group.
+    All fields have defaults so old API responses still deserialize.
+    """
     date:            datetime.date
+    workout_type:    str                  = "custom"   # default for old rows
     exercises:       List[WorkoutResponse]
     total_sets:      int
     total_volume_kg: float
-    total_steps:     int   # NEW: sum of steps across exercises in session
+    total_steps:     int                  = 0          # default for old rows
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 # ANALYTICS
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 
 class WeightTrendResponse(BaseModel):
-    user_id:          int
-    period_days:      int
-    start_weight_kg:  Optional[float]
-    end_weight_kg:    Optional[float]
-    change_kg:        Optional[float]
-    trend:            str
-    data_points:      List[WeightChartPoint]
+    user_id:         int
+    period_days:     int
+    start_weight_kg: Optional[float]
+    end_weight_kg:   Optional[float]
+    change_kg:       Optional[float]
+    trend:           str
+    data_points:     List[WeightChartPoint]
 
 class CorrelationPoint(BaseModel):
     date:           datetime.date
