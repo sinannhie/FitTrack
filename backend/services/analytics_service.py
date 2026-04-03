@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, asc
 
-from models.models import WeightEntry, FoodLog, WorkoutSession
+from models.models import WeightEntry, FoodLog, Workout
 from schemas.schemas import (
     WeightChartPoint,
     WeightTrendResponse,
@@ -151,15 +151,9 @@ def get_weekly_summary(db: Session, user_id: int, num_weeks: int = 4) -> WeeklyS
             if days_weight >= 2 else None
         )
 
-        # Count active workout days from the new WorkoutSession model
-        # Rest days are excluded from "active" workout day count
         workout_days = (
-            db.query(func.count(func.distinct(WorkoutSession.date)))
-            .filter(
-                WorkoutSession.user_id == user_id,
-                WorkoutSession.date.between(w_start, w_end),
-                WorkoutSession.workout_type != "Rest Day",
-            )
+            db.query(func.count(func.distinct(Workout.date)))
+            .filter(Workout.user_id == user_id, Workout.date.between(w_start, w_end))
             .scalar() or 0
         )
 
